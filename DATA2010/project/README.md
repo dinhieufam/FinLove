@@ -1,58 +1,193 @@
-# Project Proposal — Risk-Aware Portfolio Construction
+# Risk-Aware Portfolio Construction
 
 **Authors:** Nguyen Van Duy Anh · Pham Dinh Hieu · Cao Pham Minh Dang · Tran Anh Chuong · Ngo Dinh Khanh  
-**GitHub:** https://github.com/dinhieufam/FinLove
+**Repository:** https://github.com/dinhieufam/FinLove  
+**License:** MIT
 
 ---
 
-## 1) What is the project about?
+## Overview
 
-**Title:** Stable, Cost-Aware Portfolio Construction with Black–Litterman, CVaR, and Dynamic Risk
+A reproducible Python portfolio research engine that blends Black–Litterman views, CVaR optimization, and dynamic risk (GARCH/DCC) to produce stable, risk-aware allocations with execution realism (transaction costs, rebalance bands).
 
-**Industry:** Finance / Asset & Wealth Management
-
-**Context:** Investors need allocations that are stable, risk-aware, and net of costs. Classic Markowitz is fragile to estimation error; practitioners instead combine shrinkage covariance, Black–Litterman (BL) views, tail-risk (CVaR) optimization, and dynamic volatility/correlation (GARCH/DCC).
-
----
-
-## 2) Why this project?
-
-- **Motivation & Problem:** Naïve 60/40 or equal-weight ignores tail risk, regime shifts, and costs. Plain Markowitz overfits noisy return estimates → extreme weights and high turnover.
-- **Importance:** A robust, reproducible allocator that blends BL + CVaR + dynamic risk can lower drawdowns/CVaR, keep weights smooth, and improve net Sharpe — directly useful for institutional or wealth portfolios.
+- **Motivation:** Naïve 60/40 or equal-weight ignores tail risk, regime shifts, and costs. Classic Markowitz is fragile to estimation error and yields extreme, unstable weights.
+- **Approach:** Combine shrinkage covariance (Ledoit–Wolf/GLASSO), Black–Litterman returns, tail-risk (CVaR) optimization, and dynamic volatility/correlation (GARCH/DCC). Add execution constraints and costs.
+- **Outcome:** Smoother weights, controlled drawdowns/CVaR, lower turnover, and improved risk-adjusted returns vs. plain Markowitz.
 
 ---
 
-## 3) What is the final product?
+## Features
 
-A Python-based **portfolio engine** that supports:
+- **Risk models**
+  - Ledoit–Wolf shrinkage covariance
+  - Graphical LASSO (GLASSO)
+  - GARCH(1,1) per asset and DCC correlations (planned)
+- **Return models**
+  - Black–Litterman with data-driven, uncertainty-weighted views (planned)
+- **Objectives**
+  - Sharpe maximization, Minimum-Variance, CVaR minimization (planned)
+- **Execution realism**
+  - Transaction costs, rebalance bands, optional market impact (Almgren–Chriss) (planned)
+- **Reporting**
+  - Rolling Sharpe/volatility, Max Drawdown, VaR/CVaR, turnover, weight paths, regime labels (planned)
 
-1. **Risk models:** Ledoit–Wolf, GLASSO, GARCH(1,1) per asset, DCC correlations  
-2. **Return models:** Black–Litterman with data-driven, uncertainty-weighted views  
-3. **Objectives:** Sharpe-max / Minimum-Variance / CVaR  
-4. **Execution realism:** Transaction costs, rebalance bands, optional impact (Almgren–Chriss)
-
-**Deliverables:** A lightweight dashboard/notebook showing rolling Sharpe/volatility, MaxDD, VaR/CVaR, turnover, weight paths, and regime labels.
-
----
-
-## 4) Why this data?
-
-- **Primary dataset (used):** Yahoo Finance via `yfinance`
-- **Universe (default):** 11 liquid Sector ETFs — `XLK, XLF, XLV, XLY, XLP, XLE, XLI, XLB, XLU, XLRE, XLC`
-- **Provenance:** Free historical prices/dividends/splits
-- **Structure & variables:** Date, Adj Close, Close, Volume. We compute daily log returns, aggregate to month-end for rebalancing; keep daily for GARCH.
-- **Suitability:** Highly liquid, diversified, long histories → realistic backtests. Works well with our risk models (covariance, GARCH/DCC) and tail-risk scenarios (bootstrap/MC).
+Status: Initial scaffolding in place; core modeling and backtesting components are being implemented.
 
 ---
 
-## 5) Team responsibilities (Data Science Life Cycle)
+## Data
 
-- **Data & Infrastructure** — Acquire via `yfinance`, caching & versioning; build feature store (returns, momentum, vol, Σ). *(Tran Anh Chuong)*
-- **EDA & Research** — Crisis case studies; rolling vol/corr; PCA & clustering; draft BL view logic. *(Nguyen Van Duy Anh)*
-- **Modeling** — Implement MV (baseline) → BL (standard & uncertainty-weighted) → CVaR; risk models (LW/GLASSO/GARCH/DCC). *(Cao Pham Minh Dang)*
-- **Execution & Backtesting** — Monthly walk-forward (36M train → 1M OOS), costs, bands, impact option; ablation grid & metrics. *(Pham Dinh Hieu)*
-- **Visualization & Reporting** — Dashboard/notebook; “Reproducibility Card” (universe, dates, costs, τ/λ settings); write-up of results & insights. *(Ngo Dinh Khanh)*
+- **Source:** Yahoo Finance via `yfinance`
+- **Default universe:** Sector ETFs — `XLK, XLF, XLV, XLY, XLP, XLE, XLI, XLB, XLU, XLRE, XLC`
+- **Frequency:** Daily prices; compute daily log returns; aggregate to month-end for rebalancing; daily retained for GARCH
+- **Fields:** Date, Adj Close, Close, Volume
+
+Example loader: see `src/data.py` for a minimal `yfinance` download example.
 
 ---
 
-*Repository:* https://github.com/dinhieufam/FinLove
+## Project Structure
+
+```
+DATA2010/project/
+├─ notebooks/
+│  ├─ 01_data_pipeline.ipynb
+│  ├─ 02_eda.ipynb
+│  ├─ 03_markowitz_backtest.ipynb
+│  ├─ 04_black_litterman.ipynb
+│  └─ 05_garch_integration.ipynb
+├─ src/
+│  ├─ data.py          # data acquisition example
+│  ├─ features.py      # feature engineering (planned)
+│  ├─ risk.py          # covariance/GARCH/DCC estimators (planned)
+│  ├─ optimize.py      # MV/BL/CVaR optimizers (planned)
+│  ├─ backtest.py      # walk-forward, costs, bands (planned)
+│  └─ metrics.py       # performance/risk metrics (planned)
+├─ requirements.txt
+└─ README.md           # you are here
+```
+
+---
+
+## Quickstart
+
+### 1) Environment
+
+Python ≥ 3.10 recommended.
+
+```
+# create and activate a virtual environment
+python3 -m venv .venv
+source .venv/bin/activate
+
+# install dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+Current requirements:
+```
+yfinance
+```
+
+Planned additions: `numpy`, `pandas`, `scipy`, `cvxpy` (or `scikit-learn`/`skfolio`), `arch`, `matplotlib`, `seaborn`, `plotly`.
+
+### 2) Fetch data (example)
+
+```
+python src/data.py
+```
+
+This prints sample rows and summary statistics for a demonstration ticker. Replace ticker and dates as needed.
+
+### 3) Run notebooks
+
+Open the notebooks under `notebooks/` in Jupyter or VS Code. Suggested order:
+1. `01_data_pipeline.ipynb` — acquisition, cleaning, returns, features
+2. `02_eda.ipynb` — exploratory analysis, rolling vol/corr, PCA, clustering
+3. `03_markowitz_backtest.ipynb` — baseline Markowitz
+4. `04_black_litterman.ipynb` — BL returns and uncertainty-weighted views
+5. `05_garch_integration.ipynb` — GARCH(1,1) + DCC and integration with optimizers
+
+---
+
+## Methodology
+
+- **Covariance**
+  - Ledoit–Wolf shrinkage for stability
+  - Graphical LASSO for sparse precision and robust inverse covariance
+- **Dynamic risk**
+  - Per-asset GARCH(1,1) volatility forecasts; DCC for time-varying correlations
+- **Black–Litterman**
+  - Market equilibrium prior; incorporate data-driven sector views with confidence scaling
+- **Optimization**
+  - Problems: Sharpe-max, Min-Variance, CVaR-min
+  - Constraints: long-only or bounded long/short, turnover and band limits, budget constraints
+- **Execution realism**
+  - Proportional transaction costs, optional market impact, monthly rebalancing with bands
+
+Evaluation: rolling out-of-sample backtest (e.g., 36-month train → 1-month test), reporting Sharpe, volatility, MaxDD, VaR/CVaR, turnover, stability of weights.
+
+---
+
+## Reproducibility Card
+
+- **Universe:** 11 Sector ETFs (see above)
+- **Data source:** Yahoo Finance (free)
+- **Date range:** configurable; typical ≥ 15 years where available
+- **Rebalance:** monthly, end-of-month
+- **Costs:** proportional (tunable)
+- **Risk settings:** LW/GLASSO; GARCH(1,1) with Gaussian or Student-t innovations; DCC parameters
+- **BL settings:** τ (prior uncertainty), λ (risk aversion), view confidence mapping
+- **Randomness:** set `numpy`/`pandas` seeds where appropriate
+
+---
+
+## Roadmap
+
+- Implement `risk.py`: LW/GLASSO, GARCH(1,1), DCC
+- Implement `optimize.py`: MV/BL/CVaR with constraints and costs
+- Implement `backtest.py`: walk-forward with costs, turnover bands
+- Expand `requirements.txt` with pinned versions
+- Add plotting/reporting utilities and a lightweight dashboard
+- Add unit tests and CI
+
+---
+
+## Team & Roles
+
+- **Data & Infrastructure** — acquisition via `yfinance`, caching/versioning, feature store (returns, momentum, volatility, covariance). *(Tran Anh Chuong)*
+- **EDA & Research** — crisis case studies, rolling vol/corr, PCA & clustering, BL view logic draft. *(Nguyen Van Duy Anh)*
+- **Modeling** — MV baseline → BL → CVaR; risk models (LW/GLASSO/GARCH/DCC). *(Cao Pham Minh Dang)*
+- **Execution & Backtesting** — monthly walk-forward (36M train → 1M OOS), costs, bands, impact option; ablation grid & metrics. *(Pham Dinh Hieu)*
+- **Visualization & Reporting** — dashboards/notebooks; reproducibility card; write-up of results & insights. *(Ngo Dinh Khanh)*
+
+---
+
+## How to Contribute
+
+1. Create a feature branch from `main`.
+2. Keep changes small and well-documented; add docstrings and type hints.
+3. Open a PR with a clear description and figures where relevant.
+
+---
+
+## Citation
+
+If you use this work in academic settings:
+
+```
+@software{FinLove2025,
+  title   = {Risk-Aware Portfolio Construction},
+  author  = {Nguyen, Van Duy Anh and Pham, Dinh Hieu and Cao, Pham Minh Dang and Tran, Anh Chuong and Ngo, Dinh Khanh},
+  year    = {2025},
+  url     = {https://github.com/dinhieufam/FinLove},
+  note    = {Black–Litterman, CVaR, GARCH/DCC-based portfolio engine}
+}
+```
+
+---
+
+## License
+
+MIT — see `LICENSE`.
