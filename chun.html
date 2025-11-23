@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chương Trần Anh | Data Science & AI</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;700&family=Space+Grotesk:wght@700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0a0a12;
+            --text-primary: #e0e0e0;
+            --text-secondary: #a0a0b0;
+            --accent: #00f2ff;
+            --accent-glow: rgba(0, 242, 255, 0.4);
+            --card-bg: rgba(255, 255, 255, 0.03);
+            --card-border: rgba(255, 255, 255, 0.1);
+            --glass-blur: blur(12px);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-color); }
+        ::-webkit-scrollbar-thumb { background: #333; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+
+        /* Canvas Background */
+        #canvas-container {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            z-index: -1; pointer-events: none;
+        }
+
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0; width: 100%;
+            padding: 20px 50px;
+            display: flex; justify-content: space-between; align-items: center;
+            z-index: 100;
+            backdrop-filter: blur(10px);
+            background: rgba(10, 10, 18, 0.7);
+            border-bottom: 1px solid var(--card-border);
+        }
+
+        .logo {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: 1px;
+        }
+        .logo span { color: var(--accent); }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            margin-left: 30px;
+            font-weight: 400;
+            transition: color 0.3s;
+            position: relative;
+        }
+        .nav-links a:hover { color: var(--accent); }
+        .nav-links a::after {
+            content: ''; position: absolute; width: 0; height: 2px;
+            bottom: -5px; left: 0; background-color: var(--accent);
+            transition: width 0.3s;
+        }
+        .nav-links a:hover::after { width: 100%; }
+
+        /* Layout Utilities */
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        section { padding: 100px 0; position: relative; }
+
+        h2 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 3rem;
+            margin-bottom: 60px;
+            text-align: center;
+            background: linear-gradient(to right, #fff, var(--text-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            opacity: 0; transform: translateY(30px);
+            transition: all 0.8s ease;
+        }
+        h2.visible { opacity: 1; transform: translateY(0); }
+
+        /* --- HERO SECTION & AVATAR --- */
+        .hero {
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            flex-direction: column;
+            padding-top: 60px; /* Offset for nav */
+        }
+
+        /* Avatar Styling */
+        .avatar-wrapper {
+            width: 180px;
+            height: 180px;
+            margin: 0 auto 35px; /* Centered with bottom spacing */
+            position: relative;
+            padding: 4px; /* Space for gradient border */
+            border-radius: 50%;
+            
+            /* Extraordinary Gradient Border & Glow */
+            background: linear-gradient(135deg, var(--accent), #0a0a12 50%, var(--accent));
+            box-shadow: 0 0 40px var(--accent-glow);
+            
+            /* Floating Animation */
+            animation: floatAvatar 6s ease-in-out infinite;
+        }
+
+        .avatar-img {
+            width: 100%;
+            height: 100%;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 4px solid var(--bg-color); /* Separation from glow */
+            background-color: #1a1a24; /* Fallback color */
+            display: block;
+        }
+
+        @keyframes floatAvatar {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-15px); }
+        }
+
+        .hero h1 {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 4.5rem;
+            line-height: 1.1;
+            margin-bottom: 15px;
+        }
+        .hero-subtitle {
+            font-size: 1.5rem;
+            color: var(--accent);
+            font-family: 'Space Grotesk', monospace;
+            min-height: 1.5em;
+            margin-bottom: 10px;
+        }
+        .hero p {
+            max-width: 600px;
+            margin: 0 auto 30px;
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        .cta-btn {
+            padding: 15px 40px;
+            background: transparent;
+            border: 1px solid var(--accent);
+            color: var(--accent);
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .cta-btn:hover {
+            background: var(--accent);
+            color: #000;
+            box-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        /* --- TIMELINE & CONTENT --- */
+        .timeline { position: relative; max-width: 1000px; margin: 0 auto; }
+        .timeline::after {
+            content: ''; position: absolute; width: 2px;
+            background: var(--card-border); top: 0; bottom: 0;
+            left: 50%; margin-left: -1px;
+        }
+
+        .timeline-item {
+            padding: 10px 40px; position: relative; width: 50%;
+            opacity: 0; transform: translateY(50px); transition: all 0.8s ease;
+        }
+        .timeline-item.visible { opacity: 1; transform: translateY(0); }
+        .timeline-item.left { left: 0; text-align: right; }
+        .timeline-item.right { left: 50%; text-align: left; }
+
+        .timeline-item::after {
+            content: ''; position: absolute; width: 16px; height: 16px;
+            right: -8px; background-color: var(--bg-color);
+            border: 2px solid var(--accent); top: 15px;
+            border-radius: 50%; z-index: 1; box-shadow: 0 0 10px var(--accent-glow);
+        }
+        .timeline-item.right::after { left: -8px; }
+
+        .content-card {
+            padding: 30px;
+            background: var(--card-bg);
+            backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            transition: transform 0.3s;
+            text-align: left;
+        }
+        .timeline-item.left .content-card { text-align: right; } /* Text align match */
+        
+        .content-card:hover {
+            transform: translateY(-5px); border-color: var(--accent);
+        }
+
+        .date {
+            color: var(--accent); font-size: 0.9rem; font-weight: 700;
+            margin-bottom: 10px; display: block; text-transform: uppercase; letter-spacing: 1px;
+        }
+        .role { font-size: 1.4rem; font-weight: 700; color: #fff; margin-bottom: 5px; }
+        .company { font-size: 1rem; color: var(--text-secondary); margin-bottom: 15px; font-style: italic; }
+        
+        .content-card ul { list-style: none; font-size: 0.95rem; color: #ccc; display: inline-block; }
+        .content-card li { margin-bottom: 8px; }
+
+        /* Skills Section */
+        .skills-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 20px;
+        }
+        .skill-card {
+            background: var(--card-bg); border: 1px solid var(--card-border);
+            padding: 20px; text-align: center; border-radius: 12px;
+            transition: all 0.3s;
+        }
+        .skill-card:hover {
+            background: rgba(255, 255, 255, 0.05); border-color: var(--accent);
+            box-shadow: 0 0 15px var(--accent-glow); transform: translateY(-5px) scale(1.05);
+        }
+        .skill-card h3 { font-size: 1rem; font-weight: 400; }
+
+        /* Education Grid */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; }
+
+        /* Footer */
+        footer {
+            text-align: center; padding: 50px 0; border-top: 1px solid var(--card-border);
+            color: var(--text-secondary); font-size: 0.9rem;
+        }
+        .social-links a { color: #fff; margin: 0 10px; font-size: 1.2rem; text-decoration: none; transition: color 0.3s; }
+        .social-links a:hover { color: var(--accent); }
+
+        /* Mobile Responsive */
+        @media screen and (max-width: 768px) {
+            .hero h1 { font-size: 3rem; }
+            .nav-links { display: none; }
+            .timeline::after { left: 31px; }
+            .timeline-item { width: 100%; padding-left: 70px; padding-right: 25px; }
+            .timeline-item.left { text-align: left; }
+            .timeline-item.left .content-card { text-align: left; } /* Reset alignment */
+            .timeline-item.left::after, .timeline-item.right::after { left: 23px; }
+            .grid-2 { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Dynamic Background -->
+    <canvas id="canvas-container"></canvas>
+
+    <!-- Navigation -->
+    <nav>
+        <div class="logo">Chuong<span>.Dev</span></div>
+        <div class="nav-links">
+            <a href="#about">About</a>
+            <a href="#experience">Experience</a>
+            <a href="#skills">Skills</a>
+            <a href="#contact">Contact</a>
+        </div>
+    </nav>
+
+    <!-- Hero -->
+    <section class="hero" id="about">
+        <div class="container">
+            <!-- NEW AVATAR CONTAINER -->
+            <div class="avatar-wrapper">
+                <!-- Replace the src below with your image file -->
+                <img src="chun.jpg" alt="Chương Trần Anh" class="avatar-img">
+            </div>
+            <!-- END AVATAR CONTAINER -->
+
+            <h1>Chương Trần Anh</h1>
+            <div class="hero-subtitle" id="typing-text"></div>
+            <p>Transforming complex data into intelligent solutions. Undergraduate Researcher at VinUniversity specializing in Computer Vision, NLP, and Full-Stack Systems.</p>
+            <a href="mailto:chuong033679stu.vinschool.edu.vn" class="cta-btn">Get In Touch</a>
+        </div>
+    </section>
+
+    <!-- Experience (Timeline) -->
+    <section id="experience">
+        <div class="container">
+            <h2 class="animate-on-scroll">Professional Journey</h2>
+            <div class="timeline">
+                
+                <div class="timeline-item left animate-on-scroll">
+                    <div class="content-card">
+                        <span class="date">Aug 2025 - Present</span>
+                        <h3 class="role">Undergraduate Research Assistant</h3>
+                        <div class="company">VinUni-Illinois Smart Health Center (VISHC)</div>
+                        <ul>
+                            <li>Spearheading research in AI applications and data systems.</li>
+                            <li>Developing smart health solutions using advanced data processing.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="timeline-item right animate-on-scroll">
+                    <div class="content-card">
+                        <span class="date">Mar 2025 - Present</span>
+                        <h3 class="role">Software Developer</h3>
+                        <div class="company">VinNLP</div>
+                        <ul>
+                            <li>Architected core website for NLP research team.</li>
+                            <li>Optimized UI/UX for academic visibility and accessibility.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="timeline-item left animate-on-scroll">
+                    <div class="content-card">
+                        <span class="date">Oct 2024 - Present</span>
+                        <h3 class="role">Co-Founder</h3>
+                        <div class="company">VinTelligence</div>
+                        <ul>
+                            <li>Leading technical strategy for intelligent solution startups.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="timeline-item right animate-on-scroll">
+                    <div class="content-card">
+                        <span class="date">Aug 2024 - Aug 2025</span>
+                        <h3 class="role">Research Assistant</h3>
+                        <div class="company">VinUniversity</div>
+                        <ul>
+                            <li>Developed KALM4REC: A keyword-driven recommendation framework.</li>
+                            <li>Deployed data visualization tools for user-restaurant connections.</li>
+                        </ul>
+                    </div>
+                </div>
+
+                 <div class="timeline-item left animate-on-scroll">
+                    <div class="content-card">
+                        <span class="date">Aug 2024 - June 2025</span>
+                        <h3 class="role">Front-End Developer</h3>
+                        <div class="company">Hong Long Port</div>
+                        <ul>
+                            <li>Revamped UI using ReactJS & Tailwind CSS.</li>
+                            <li>Enhanced performance for high-traffic logistics portal.</li>
+                        </ul>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Skills -->
+    <section id="skills">
+        <div class="container">
+            <h2 class="animate-on-scroll">Technical Stack</h2>
+            <div class="skills-grid animate-on-scroll">
+                <div class="skill-card"><h3>Computer Vision</h3></div>
+                <div class="skill-card"><h3>Python</h3></div>
+                <div class="skill-card"><h3>ReactJS</h3></div>
+                <div class="skill-card"><h3>Tailwind CSS</h3></div>
+                <div class="skill-card"><h3>Flask</h3></div>
+                <div class="skill-card"><h3>Data Processing</h3></div>
+                <div class="skill-card"><h3>Software Infrastructure</h3></div>
+                <div class="skill-card"><h3>NLP</h3></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Education & Honors -->
+    <section id="education">
+        <div class="container">
+            <h2 class="animate-on-scroll">Education & Honors</h2>
+            <div class="grid-2">
+                <div class="content-card animate-on-scroll">
+                    <span class="date">2024 - 2028</span>
+                    <h3 class="role">B.S. Data Science</h3>
+                    <div class="company">VinUniversity</div>
+                    <p style="color: #ccc; margin-top: 10px;">Focusing on AI, Big Data, and System Development.</p>
+                </div>
+                <div class="content-card animate-on-scroll">
+                    <span class="date">2022 - 2023</span>
+                    <h3 class="role">Computer Science Star Award</h3>
+                    <div class="company">Honors</div>
+                    <p style="color: #ccc; margin-top: 10px;">Recognized for excellence in computational thinking and problem solving.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer id="contact">
+        <div class="container">
+            <h2>Let's Connect</h2>
+            <p style="margin-bottom: 30px;">Open to collaborations in AI Research and Web Development.</p>
+            <div class="social-links">
+                <a href="mailto:chuong033679stu.vinschool.edu.vn">Email</a>
+                <a href="https://www.linkedin.com/in/ch%C6%B0%C6%A1ng-tr%E1%BA%A7n-anh-6a02b3286/" target="_blank">LinkedIn</a>
+            </div>
+            <br><br>
+            <p>&copy; 2025 Chương Trần Anh. Crafted with code.</p>
+        </div>
+    </footer>
+
+    <script>
+        // 1. Typing Effect
+        const textElement = document.getElementById('typing-text');
+        const texts = ["Data Science Sophomore", "AI Researcher", "Full-Stack Developer"];
+        let count = 0;
+        let index = 0;
+        let currentText = "";
+        let letter = "";
+
+        (function type() {
+            if (count === texts.length) { count = 0; }
+            currentText = texts[count];
+            letter = currentText.slice(0, ++index);
+            textElement.textContent = letter + "|";
+
+            if (letter.length === currentText.length) {
+                setTimeout(() => { index = 0; count++; type(); }, 2000);
+            } else {
+                setTimeout(type, 100);
+            }
+        })();
+
+        // 2. Scroll Animations
+        const observerOptions = { threshold: 0.1 };
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach((entry) => {
+                if (entry.isIntersecting) { entry.target.classList.add('visible'); }
+            });
+        }, observerOptions);
+        document.querySelectorAll('.animate-on-scroll').forEach((el) => { observer.observe(el); });
+
+        // 3. Canvas Particle Background
+        const canvas = document.getElementById('canvas-container');
+        const ctx = canvas.getContext('2d');
+        let width, height, particles = [];
+
+        function resize() {
+            width = window.innerWidth; height = window.innerHeight;
+            canvas.width = width; canvas.height = height;
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        class Particle {
+            constructor() {
+                this.x = Math.random() * width; this.y = Math.random() * height;
+                this.vx = (Math.random() - 0.5) * 0.5; this.vy = (Math.random() - 0.5) * 0.5;
+                this.size = Math.random() * 2;
+            }
+            update() {
+                this.x += this.vx; this.y += this.vy;
+                if (this.x < 0 || this.x > width) this.vx *= -1;
+                if (this.y < 0 || this.y > height) this.vy *= -1;
+            }
+            draw() {
+                ctx.fillStyle = 'rgba(0, 242, 255, 0.5)';
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2); ctx.fill();
+            }
+        }
+
+        function initParticles() {
+            particles = [];
+            for (let i = 0; i < 60; i++) { particles.push(new Particle()); }
+        }
+
+        function animate() {
+            ctx.clearRect(0, 0, width, height);
+            particles.forEach(p => {
+                p.update(); p.draw();
+                particles.forEach(p2 => {
+                    const dx = p.x - p2.x; const dy = p.y - p2.y;
+                    const dist = Math.sqrt(dx*dx + dy*dy);
+                    if (dist < 150) {
+                        ctx.strokeStyle = `rgba(0, 242, 255, ${0.1 - dist/1500})`;
+                        ctx.lineWidth = 0.5; ctx.beginPath();
+                        ctx.moveTo(p.x, p.y); ctx.lineTo(p2.x, p2.y); ctx.stroke();
+                    }
+                });
+            });
+            requestAnimationFrame(animate);
+        }
+        initParticles();
+        animate();
+    </script>
+</body>
+</html>

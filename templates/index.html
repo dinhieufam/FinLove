@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FinLove | Portfolio MVP</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --accent: #3498db;
+            --light: #ecf0f1;
+            --dark: #2c3e50;
+            --success: #27ae60;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f8f9fa;
+            color: var(--dark);
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 3rem;
+        }
+        h1 { color: var(--primary); margin-bottom: 0.5rem; }
+        .subtitle { color: #7f8c8d; font-weight: 300; }
+        
+        .dashboard {
+            display: grid;
+            grid-template-columns: 300px 1fr;
+            gap: 2rem;
+        }
+        
+        /* Sidebar Controls */
+        .controls {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            height: fit-content;
+        }
+        .form-group { margin-bottom: 1.5rem; }
+        label { display: block; margin-bottom: 0.5rem; font-weight: 600; font-size: 0.9rem; }
+        input[type="text"], select {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #bdc3c7;
+            border-radius: 6px;
+            box-sizing: border-box;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: var(--accent);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: background 0.2s;
+        }
+        button:hover { background-color: #2980b9; }
+        button:disabled { background-color: #95a5a6; }
+
+        /* Results Area */
+        .results-area {
+            display: grid;
+            grid-template-rows: auto auto;
+            gap: 1.5rem;
+        }
+        
+        .metrics-cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1rem;
+        }
+        .card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .card h3 { margin: 0; font-size: 0.9rem; color: #7f8c8d; }
+        .card .value { font-size: 1.8rem; font-weight: bold; color: var(--primary); margin-top: 0.5rem; }
+
+        .viz-container {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            min-height: 400px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        table { width: 100%; border-collapse: collapse; margin-top: 1rem; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #ecf0f1; }
+        th { color: #7f8c8d; font-size: 0.85rem; }
+        
+        .loading { display: none; color: var(--accent); font-weight: bold; }
+        img { max-width: 100%; height: auto; border-radius: 8px; }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .dashboard { grid-template-columns: 1fr; }
+            .metrics-cards { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>FinLove Portfolio Engine</h1>
+        <div class="subtitle">Risk-Aware Construction • Markowitz • Black-Litterman</div>
+    </header>
+
+    <div class="dashboard">
+        <!-- Input Section -->
+        <aside class="controls">
+            <div class="form-group">
+                <label for="tickers">Universe (Sector ETFs)</label>
+                <input type="text" id="tickers" value="{{ default_tickers }}">
+                <small style="color: #95a5a6; font-size: 0.8rem;">Comma separated tickers</small>
+            </div>
+
+            <div class="form-group">
+                <label for="strategy">Optimization Model</label>
+                <select id="strategy">
+                    <option value="mvo">Markowitz (Max Sharpe)</option>
+                    <option value="bl">Black-Litterman (Demo Views)</option>
+                </select>
+                <div id="bl-desc" style="display:none; font-size:0.8rem; color:#e67e22; margin-top:5px;">
+                    Simulates a view: Bullish on Tech (XLK), Bearish on Utilities (XLU).
+                </div>
+            </div>
+
+            <button id="calcBtn" onclick="calculatePortfolio()">Run Optimization</button>
+            <div id="loading" class="loading" style="text-align: center; margin-top: 10px;">
+                Crunching numbers...
+            </div>
+        </aside>
+
+        <!-- Results Section -->
+        <main class="results-area">
+            <!-- Key Metrics -->
+            <div class="metrics-cards">
+                <div class="card">
+                    <h3>Exp. Return (Ann.)</h3>
+                    <div class="value" id="res-ret">-</div>
+                </div>
+                <div class="card">
+                    <h3>Volatility (Ann.)</h3>
+                    <div class="value" id="res-vol">-</div>
+                </div>
+                <div class="card">
+                    <h3>Sharpe Ratio</h3>
+                    <div class="value" id="res-sharpe">-</div>
+                </div>
+            </div>
+
+            <!-- Visualization & Weights -->
+            <div class="viz-container">
+                <div id="placeholder-text" style="color:#bdc3c7;">Run optimization to see Efficient Frontier</div>
+                <img id="frontier-plot" src="" style="display: none;" alt="Efficient Frontier">
+                
+                <div style="width: 100%; margin-top: 2rem;">
+                    <h3>Optimized Weights</h3>
+                    <table id="weights-table">
+                        <thead>
+                            <tr>
+                                <th>Asset</th>
+                                <th>Weight (%)</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+        </main>
+    </div>
+</div>
+
+<script>
+    document.getElementById('strategy').addEventListener('change', function() {
+        const desc = document.getElementById('bl-desc');
+        desc.style.display = this.value === 'bl' ? 'block' : 'none';
+    });
+
+    async function calculatePortfolio() {
+        const btn = document.getElementById('calcBtn');
+        const loading = document.getElementById('loading');
+        const tickers = document.getElementById('tickers').value;
+        const strategy = document.getElementById('strategy').value;
+
+        // UI State
+        btn.disabled = true;
+        loading.style.display = 'block';
+        document.getElementById('frontier-plot').style.display = 'none';
+        document.getElementById('placeholder-text').style.display = 'none';
+
+        try {
+            const response = await fetch('/calculate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ tickers, strategy })
+            });
+
+            const data = await response.json();
+
+            if (data.error) {
+                alert('Error: ' + data.error);
+                return;
+            }
+
+            // Update Metrics
+            document.getElementById('res-ret').innerText = data.metrics.return + '%';
+            document.getElementById('res-vol').innerText = data.metrics.volatility + '%';
+            document.getElementById('res-sharpe').innerText = data.metrics.sharpe;
+
+            // Update Plot
+            const img = document.getElementById('frontier-plot');
+            img.src = "data:image/png;base64," + data.plot;
+            img.style.display = 'block';
+
+            // Update Table
+            const tbody = document.querySelector('#weights-table tbody');
+            tbody.innerHTML = '';
+            
+            // Sort weights descending
+            const sortedWeights = Object.entries(data.allocation).sort((a,b) => b[1] - a[1]);
+
+            sortedWeights.forEach(([ticker, weight]) => {
+                const row = `<tr><td><b>${ticker}</b></td><td>${weight}%</td></tr>`;
+                tbody.innerHTML += row;
+            });
+
+        } catch (err) {
+            console.error(err);
+            alert('Failed to connect to server.');
+        } finally {
+            btn.disabled = false;
+            loading.style.display = 'none';
+        }
+    }
+</script>
+
+</body>
+</html>
