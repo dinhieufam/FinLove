@@ -15,15 +15,23 @@ import warnings
 warnings.filterwarnings('ignore')
 
 
-def get_available_solver():
+def get_available_solver(require_conic: bool = False):
     """
     Get the best available solver for portfolio optimization.
+    
+    Args:
+        require_conic: Set to True when the problem includes SOC / conic constraints
+                       and therefore needs a conic-capable solver.
     
     Returns:
         Solver name string
     """
-    # Try solvers in order of preference
-    preferred_solvers = ['ECOS', 'OSQP', 'SCS', 'CLARABEL', 'SCIPY']
+    # Try solvers in order of preference. Some problems (e.g., Sharpe ratio)
+    # require SOC/conic support, so we optionally prioritize conic solvers.
+    if require_conic:
+        preferred_solvers = ['ECOS', 'SCS', 'CLARABEL']
+    else:
+        preferred_solvers = ['ECOS', 'OSQP', 'SCS', 'CLARABEL', 'SCIPY']
     available = cp.installed_solvers()
     
     for solver in preferred_solvers:
@@ -133,7 +141,11 @@ def minimum_variance_optimization(
             constraints_list.append(w <= constraints['max_weight'])
     
     problem = cp.Problem(objective, constraints_list)
-    problem.solve(solver=cp.ECOS, verbose=False)
+    solver = get_available_solver()
+    if solver:
+        problem.solve(solver=solver, verbose=False)
+    else:
+        problem.solve(verbose=False)
     
     if problem.status not in ['optimal', 'optimal_inaccurate']:
         return pd.Series(1.0 / n, index=covariance.index)
@@ -173,15 +185,16 @@ def sharpe_maximization(
     # Excess returns
     excess_returns = expected_returns.values - rf_daily
     
-    # Sharpe ratio = (excess return) / (volatility)
-    # We maximize excess return / volatility, which is equivalent to
-    # maximizing excess return subject to volatility = 1
+    # Sharpe ratio = (excess return) / volatility. Directly optimizing this ratio
+    # violates DCP rules, so we use the equivalent unit-variance formulation:
+    # maximize excess return while constraining portfolio variance <= 1.
+    # This keeps the problem convex and solver-compatible.
     portfolio_return = excess_returns @ w
-    portfolio_vol = cp.sqrt(cp.quad_form(w, covariance.values))
     
-    objective = cp.Maximize(portfolio_return / portfolio_vol)
-    
-    constraints_list = [cp.sum(w) == 1]
+    constraints_list = [
+        cp.sum(w) == 1,
+        cp.quad_form(w, covariance.values) <= 1
+    ]
     
     if constraints:
         if constraints.get('long_only', False):
@@ -190,8 +203,12 @@ def sharpe_maximization(
         if 'max_weight' in constraints:
             constraints_list.append(w <= constraints['max_weight'])
     
-    problem = cp.Problem(objective, constraints_list)
-    problem.solve(solver=cp.ECOS, verbose=False)
+    problem = cp.Problem(cp.Maximize(portfolio_return), constraints_list)
+    solver = get_available_solver(require_conic=True)
+    if solver:
+        problem.solve(solver=solver, verbose=False)
+    else:
+        problem.solve(verbose=False)
     
     if problem.status not in ['optimal', 'optimal_inaccurate']:
         return pd.Series(1.0 / n, index=expected_returns.index)
@@ -320,7 +337,11 @@ def cvar_optimization(
             constraints_list.append(w <= constraints['max_weight'])
     
     problem = cp.Problem(objective, constraints_list)
-    problem.solve(solver=cp.ECOS, verbose=False)
+    solver = get_available_solver()
+    if solver:
+        problem.solve(solver=solver, verbose=False)
+    else:
+        problem.solve(verbose=False)
     
     if problem.status not in ['optimal', 'optimal_inaccurate']:
         return pd.Series(1.0 / n_assets, index=returns.columns)
