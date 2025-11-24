@@ -24,7 +24,8 @@ sys.path.insert(0, project_root)
 # Import modules
 from src.data import (
     download_data, get_returns, get_company_info,
-    prepare_portfolio_data, compute_features
+    prepare_portfolio_data, compute_features,
+    get_cache_info, clear_cache
 )
 from src.risk import get_covariance_matrix
 from src.optimize import optimize_portfolio
@@ -64,6 +65,27 @@ st.markdown("""
 # Title
 st.markdown('<div class="main-header">📈 FinLove Portfolio Construction Dashboard</div>', unsafe_allow_html=True)
 st.markdown("---")
+
+# Data Management Section (at top of sidebar)
+with st.sidebar.expander("📦 Data Management", expanded=False):
+    cache_info = get_cache_info()
+    st.write("**Cache Status:**")
+    st.write(f"- Files: {cache_info['total_files']}")
+    st.write(f"- Size: {cache_info['total_size_mb']:.2f} MB")
+    if cache_info['newest_cache']:
+        st.write(f"- Newest: {cache_info['newest_cache'].strftime('%Y-%m-%d %H:%M')}")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🔄 Refresh Cache Info"):
+            st.rerun()
+    with col2:
+        if st.button("🗑️ Clear Cache"):
+            cleared = clear_cache()
+            st.success(f"Cleared {cleared} files")
+            st.rerun()
+    
+    st.info("💡 **Tip:** Run `python download_data.py` to pre-download datasets for faster performance.")
 
 # Sidebar for inputs
 st.sidebar.header("Portfolio Configuration")
