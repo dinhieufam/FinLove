@@ -1,19 +1,16 @@
 """
 Data Pre-download Script
 
-This script allows you to pre-download and cache financial data for faster dashboard performance.
+This script allows you to pre-download financial data and store as CSV files for later use.
 You can run this script to download data for popular tickers or custom ticker lists.
 """
 
-import sys
 import os
 from datetime import datetime, timedelta
 from typing import List
 
-# Add src to path
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
-
-from src.data import download_data, prepare_portfolio_data, clear_cache, get_cache_info
+import yfinance as yf
+import pandas as pd
 
 # Default sector ETFs from the project
 DEFAULT_ETFS = ["XLK", "XLF", "XLV", "XLY", "XLP", "XLE", "XLI", "XLB", "XLU", "XLRE", "XLC"]
@@ -27,6 +24,13 @@ POPULAR_STOCKS = [
     "JPM", "BAC", "WMT", "JNJ", "PG", "V", "MA", "DIS", "HD", "NKE"
 ]
 
+# Destination folder for CSVs
+DATASET_DIR = "/home/dang.cpm/__MY_SPACE__/VinUni/Data-Science-Programming/FinLove/Dataset"
+
+def ensure_dir_exists(directory):
+    """Ensure data directory exists."""
+    if not os.path.exists(directory):
+        os.makedirs(directory)
 
 def download_ticker_list(
     tickers: List[str],
@@ -35,8 +39,8 @@ def download_ticker_list(
     description: str = ""
 ):
     """
-    Download and cache data for a list of tickers.
-    
+    Download and save data for a list of tickers as CSV files using yfinance.
+
     Args:
         tickers: List of ticker symbols
         start_date: Start date for data
@@ -45,47 +49,56 @@ def download_ticker_list(
     """
     if end_date is None:
         end_date = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
-    
+
+    ensure_dir_exists(DATASET_DIR)
+
     print(f"\n{'='*60}")
     print(f"Downloading data for: {description}")
     print(f"Tickers: {', '.join(tickers)}")
     print(f"Date range: {start_date} to {end_date}")
     print(f"{'='*60}\n")
-    
-    try:
-        # Download data (this will automatically cache it)
-        returns, prices = prepare_portfolio_data(
-            tickers,
-            start_date=start_date,
-            end_date=end_date,
-            use_cache=True
-        )
-        
-        if returns.empty:
-            print(f"⚠️  Warning: No data downloaded for {', '.join(tickers)}")
-        else:
-            print(f"✅ Successfully downloaded and cached data for {len(returns.columns)} assets")
-            print(f"   Date range: {returns.index[0].date()} to {returns.index[-1].date()}")
-            print(f"   Total days: {len(returns)}")
-    except Exception as e:
-        print(f"❌ Error downloading data: {e}")
 
+    for ticker in tickers:
+        try:
+            df = yf.download(
+                ticker,
+                start=start_date,
+                end=end_date,
+                auto_adjust=True,
+                progress=False,
+                threads=True
+            )
+            if df.empty:
+                print(f"⚠️  Warning: No data downloaded for {ticker}")
+                continue
+
+            csv_filename = os.path.join(DATASET_DIR, f"{ticker}_{start_date}_to_{end_date}.csv")
+            df.to_csv(csv_filename)
+            start_idx = df.index[0].date()
+            end_idx = df.index[-1].date()
+            print(f"✅ {ticker}: Data downloaded and saved as {csv_filename}")
+            print(f"   Date range: {start_idx} to {end_idx} | Total days: {len(df)}")
+        except Exception as e:
+            print(f"❌ Error downloading data for {ticker}: {e}")
+            import traceback
+            traceback.print_exc()
+
+def list_downloaded_files():
+    ensure_dir_exists(DATASET_DIR)
+    files = os.listdir(DATASET_DIR)
+    csv_files = [f for f in files if f.endswith(".csv")]
+    print(f"\nFiles in dataset directory ({DATASET_DIR}):")
+    for f in csv_files:
+        print(f" - {f}")
+    print(f"Total CSV files: {len(csv_files)}")
 
 def main():
-    """Main function to download datasets."""
+    """Main function to download datasets using yfinance."""
     print("="*60)
     print("FinLove Data Pre-download Script")
     print("="*60)
-    print("\nThis script will download and cache financial data.")
-    print("Cached data will be used automatically by the dashboard for faster performance.\n")
-    
-    # Show current cache info
-    cache_info = get_cache_info()
-    print(f"Current cache: {cache_info['total_files']} files, {cache_info['total_size_mb']:.2f} MB")
-    if cache_info['oldest_cache']:
-        print(f"Oldest cache: {cache_info['oldest_cache']}")
-        print(f"Newest cache: {cache_info['newest_cache']}")
-    print()
+    print("\nThis script will download financial data and store it as CSV files.")
+    print(f"Data will be stored in: {os.path.abspath(DATASET_DIR)}\n")
     
     # Get user choice
     print("Select dataset to download:")
@@ -94,9 +107,8 @@ def main():
     print("3. Popular Stocks Across Sectors (19 stocks)")
     print("4. Custom ticker list")
     print("5. Download all (ETFs + Tech + Popular)")
-    print("6. Clear cache")
+    print("6. List downloaded CSV files")
     print("0. Exit")
-    
     choice = input("\nEnter choice (0-6): ").strip()
     
     # Default date range (last 10 years)
@@ -128,28 +140,14 @@ def main():
         print("\n✅ All datasets downloaded!")
     
     elif choice == "6":
-        confirm = input("Clear all cached data? (yes/no): ").strip().lower()
-        if confirm == "yes":
-            cleared = clear_cache()
-            print(f"✅ Cleared {cleared} cached files")
-        else:
-            print("Cancelled.")
+        list_downloaded_files()
     
     elif choice == "0":
         print("Exiting...")
         return
-    
     else:
         print("Invalid choice.")
         return
-    
-    # Show updated cache info
-    cache_info = get_cache_info()
-    print(f"\n{'='*60}")
-    print(f"Updated cache: {cache_info['total_files']} files, {cache_info['total_size_mb']:.2f} MB")
-    print(f"{'='*60}\n")
-
 
 if __name__ == "__main__":
     main()
-
