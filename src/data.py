@@ -20,6 +20,9 @@ warnings.filterwarnings('ignore')
 CACHE_DIR = os.path.join(os.path.dirname(__file__), '..', 'data_cache')
 os.makedirs(CACHE_DIR, exist_ok=True)
 
+# Dataset directory (for pre-downloaded CSV files)
+DATASET_DIR = os.path.join(os.path.dirname(__file__), '..', 'Dataset')
+
 
 def get_cache_key(tickers: List[str], start_date: str, end_date: Optional[str], period: Optional[str]) -> str:
     """
@@ -106,6 +109,114 @@ def save_to_cache(cache_key: str, data: pd.DataFrame):
         print(f"Error saving to cache: {e}")
 
 
+def load_from_dataset_csv(tickers: List[str], start_date: str = None, end_date: str = None) -> Optional[pd.DataFrame]:
+    """
+    Load data from pre-downloaded CSV files in the Dataset directory.
+    
+    This function searches for CSV files matching the pattern: {TICKER}_{start_date}_to_{end_date}.csv
+    and loads them into a MultiIndex DataFrame format compatible with the rest of the codebase.
+    
+    Args:
+        tickers: List of ticker symbols to load
+        start_date: Start date string (optional, for matching file names)
+        end_date: End date string (optional, for matching file names)
+    
+    Returns:
+        DataFrame with MultiIndex columns (ticker, OHLCV) and Date index, or None if files not found
+    """
+    if not os.path.exists(DATASET_DIR):
+        return None
+    
+    # Get all CSV files in Dataset directory
+    csv_files = [f for f in os.listdir(DATASET_DIR) if f.endswith('.csv')]
+    
+    if not csv_files:
+        return None
+    
+    loaded_data = {}
+    
+    # Try to find CSV files for each ticker
+    for ticker in tickers:
+        # Look for files matching the ticker (case-insensitive)
+        matching_files = [f for f in csv_files if f.upper().startswith(ticker.upper() + '_')]
+        
+        if not matching_files:
+            # Try to find any file with the ticker name in it
+            matching_files = [f for f in csv_files if ticker.upper() in f.upper()]
+        
+        if matching_files:
+            # Use the first matching file (or most recent if multiple)
+            csv_file = os.path.join(DATASET_DIR, matching_files[0])
+            
+            try:
+                # Read CSV file - handle the MultiIndex header structure
+                # The CSV has headers at rows 0, 1, 2, with actual data starting at row 3
+                df = pd.read_csv(csv_file, header=[0, 1, 2], index_col=0, parse_dates=True)
+                
+                # The CSV structure is: Price/Ticker/Date as MultiIndex columns
+                # We need to extract the actual data columns (Close, High, Low, Open, Volume)
+                # and the ticker name
+                
+                # Get the ticker name from the second level of columns
+                if isinstance(df.columns, pd.MultiIndex):
+                    # Extract ticker from column structure
+                    # Columns are like: (Close, AAPL, Unnamed: X)
+                    ticker_from_file = None
+                    for col in df.columns:
+                        if len(col) >= 2 and col[1] and col[1] != 'Unnamed: 1_level_2':
+                            ticker_from_file = col[1]
+                            break
+                    
+                    # If we couldn't find ticker in columns, try to extract from filename
+                    if ticker_from_file is None:
+                        ticker_from_file = ticker
+                    
+                    # Reconstruct DataFrame with proper MultiIndex
+                    # Extract OHLCV columns
+                    data_dict = {}
+                    for col_name in ['Close', 'High', 'Low', 'Open', 'Volume']:
+                        # Find column matching this name
+                        matching_cols = [c for c in df.columns if c[0] == col_name]
+                        if matching_cols:
+                            data_dict[(ticker_from_file, col_name)] = df[matching_cols[0]]
+                    
+                    if data_dict:
+                        ticker_df = pd.DataFrame(data_dict)
+                        loaded_data[ticker_from_file] = ticker_df
+                
+            except Exception as e:
+                # If MultiIndex reading fails, try simpler approach
+                try:
+                    # Try reading with skiprows to skip the header rows
+                    df = pd.read_csv(csv_file, skiprows=2, index_col=0, parse_dates=True)
+                    
+                    # Check if columns are what we expect
+                    if all(col in df.columns for col in ['Close', 'High', 'Low', 'Open', 'Volume']):
+                        # Create MultiIndex columns
+                        ticker_name = ticker
+                        # Try to extract from filename
+                        if '_' in os.path.basename(csv_file):
+                            ticker_name = os.path.basename(csv_file).split('_')[0].upper()
+                        
+                        multi_cols = pd.MultiIndex.from_product([[ticker_name], df.columns])
+                        df.columns = multi_cols
+                        loaded_data[ticker_name] = df
+                except Exception as e2:
+                    print(f"Error loading CSV file {csv_file}: {e2}")
+                    continue
+    
+    if not loaded_data:
+        return None
+    
+    # Combine all tickers into a single DataFrame
+    if len(loaded_data) == 1:
+        return list(loaded_data.values())[0]
+    else:
+        # Concatenate along columns, aligning by index (date)
+        combined = pd.concat(loaded_data.values(), axis=1)
+        return combined
+
+
 def download_data(
     tickers: List[str],
     start_date: str = "2010-01-01",
@@ -116,6 +227,11 @@ def download_data(
 ) -> pd.DataFrame:
     """
     Download historical price data for given tickers with optional caching.
+    
+    This function tries multiple data sources in order:
+    1. Pre-downloaded CSV files in Dataset directory
+    2. Cached pickle files in data_cache directory
+    3. Download from Yahoo Finance via yfinance
     
     Args:
         tickers: List of ticker symbols (e.g., ['AAPL', 'MSFT'])
@@ -128,7 +244,35 @@ def download_data(
     Returns:
         DataFrame with MultiIndex columns (ticker, OHLCV) and Date index
     """
-    # Try to load from cache first
+    # First, try to load from pre-downloaded CSV files in Dataset directory
+    csv_data = load_from_dataset_csv(tickers, start_date, end_date)
+    if csv_data is not None and not csv_data.empty:
+        # Filter by date range if specified
+        if start_date or end_date:
+            try:
+                if start_date:
+                    start_dt = pd.to_datetime(start_date)
+                    csv_data = csv_data[csv_data.index >= start_dt]
+                if end_date:
+                    end_dt = pd.to_datetime(end_date)
+                    csv_data = csv_data[csv_data.index <= end_dt]
+            except Exception as e:
+                print(f"Warning: Could not filter CSV data by date range: {e}")
+        
+        # Verify we have the requested tickers
+        if isinstance(csv_data.columns, pd.MultiIndex):
+            available_tickers = csv_data.columns.get_level_values(0).unique()
+            missing_tickers = [t for t in tickers if t not in available_tickers]
+            if missing_tickers:
+                print(f"Warning: Some tickers not found in CSV files: {missing_tickers}")
+                # Filter to only available tickers
+                csv_data = csv_data[[t for t in available_tickers if t in tickers]]
+        
+        if not csv_data.empty:
+            print(f"✅ Loaded data from CSV files in Dataset directory for: {list(csv_data.columns.get_level_values(0).unique()) if isinstance(csv_data.columns, pd.MultiIndex) else 'single ticker'}")
+            return csv_data
+    
+    # Try to load from cache second
     if use_cache:
         cache_key = get_cache_key(tickers, start_date, end_date, period)
         cached_data = load_cached_data(cache_key, cache_max_age_hours)
@@ -137,14 +281,48 @@ def download_data(
     
     # Download fresh data
     try:
+        # Download without auto_adjust to have consistent column names
+        # We'll use 'Adj Close' if available, otherwise 'Close'
         if period:
-            data = yf.download(tickers, period=period, progress=False, auto_adjust=True)
+            data = yf.download(tickers, period=period, progress=False, auto_adjust=False)
         else:
-            data = yf.download(tickers, start=start_date, end=end_date, progress=False, auto_adjust=True)
+            data = yf.download(tickers, start=start_date, end=end_date, progress=False, auto_adjust=False)
         
-        # Handle single ticker case (yfinance returns different structure)
+        if data.empty:
+            return pd.DataFrame()
+        
+        # Handle different data structures from yfinance
+        # When downloading multiple tickers, structure is MultiIndex (ticker, OHLCV)
+        # When downloading single ticker, structure is flat
+        
+        # Normalize to MultiIndex structure for consistency
         if len(tickers) == 1:
-            data.columns = pd.MultiIndex.from_product([tickers, data.columns])
+            # Single ticker: convert to MultiIndex
+            if not isinstance(data.columns, pd.MultiIndex):
+                data.columns = pd.MultiIndex.from_product([tickers, data.columns])
+        else:
+            # Multiple tickers: should already be MultiIndex, but verify
+            if not isinstance(data.columns, pd.MultiIndex):
+                # This shouldn't happen with multiple tickers, but handle it
+                print(f"Warning: Unexpected data structure for multiple tickers")
+                # Try to infer - this is a fallback
+                if 'Close' in data.columns:
+                    # Flat structure with ticker names as columns
+                    data = data.stack().unstack(level=0)
+        
+        # Filter out any tickers that have no data
+        if isinstance(data.columns, pd.MultiIndex):
+            valid_tickers = []
+            for ticker in tickers:
+                if ticker in data.columns.get_level_values(0):
+                    ticker_data = data[ticker]
+                    if not ticker_data.empty and not ticker_data.isna().all().all():
+                        valid_tickers.append(ticker)
+            
+            if valid_tickers:
+                data = data[valid_tickers]
+            else:
+                return pd.DataFrame()
         
         # Save to cache
         if use_cache and not data.empty:
@@ -154,6 +332,8 @@ def download_data(
         return data
     except Exception as e:
         print(f"Error downloading data: {e}")
+        import traceback
+        traceback.print_exc()
         return pd.DataFrame()
 
 
@@ -309,11 +489,45 @@ def prepare_portfolio_data(
     if data.empty:
         return pd.DataFrame(), pd.DataFrame()
     
-    # Extract close prices
+    # Extract close prices - handle different data structures
+    # Prefer 'Adj Close' (adjusted for splits/dividends), fallback to 'Close'
     if isinstance(data.columns, pd.MultiIndex):
-        prices = data.xs('Close', level=1, axis=1)
+        # MultiIndex structure: (ticker, OHLCV)
+        level_1_values = data.columns.get_level_values(1).unique()
+        
+        if 'Adj Close' in level_1_values:
+            prices = data.xs('Adj Close', level=1, axis=1)
+        elif 'Close' in level_1_values:
+            prices = data.xs('Close', level=1, axis=1)
+        else:
+            # Fallback: try to get first numeric column for each ticker
+            prices = pd.DataFrame(index=data.index)
+            for ticker in data.columns.get_level_values(0).unique():
+                ticker_data = data[ticker]
+                if 'Adj Close' in ticker_data.columns:
+                    prices[ticker] = ticker_data['Adj Close']
+                elif 'Close' in ticker_data.columns:
+                    prices[ticker] = ticker_data['Close']
+                elif len(ticker_data.columns) > 0:
+                    # Use first column as fallback
+                    prices[ticker] = ticker_data.iloc[:, 0]
     else:
-        prices = data['Close'] if 'Close' in data.columns else data
+        # Single ticker or flat structure
+        if 'Adj Close' in data.columns:
+            prices = data['Adj Close']
+        elif 'Close' in data.columns:
+            prices = data['Close']
+        elif len(data.columns) > 0:
+            # Use first column as fallback
+            prices = data.iloc[:, 0]
+        else:
+            prices = data
+    
+    # Ensure prices is a DataFrame with tickers as columns
+    if isinstance(prices, pd.Series):
+        prices = prices.to_frame()
+        if len(tickers) == 1:
+            prices.columns = tickers
     
     # Calculate returns
     returns = get_returns(prices, method='log', frequency='daily')
