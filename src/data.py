@@ -10,27 +10,132 @@ import pandas as pd
 import numpy as np
 from typing import List, Optional, Dict
 import warnings
+import os
+import pickle
+from datetime import datetime, timedelta
+import hashlib
 warnings.filterwarnings('ignore')
+
+# Cache directory
+CACHE_DIR = os.path.join(os.path.dirname(__file__), '..', 'data_cache')
+os.makedirs(CACHE_DIR, exist_ok=True)
+
+
+def get_cache_key(tickers: List[str], start_date: str, end_date: Optional[str], period: Optional[str]) -> str:
+    """
+    Generate a cache key for the data request.
+    
+    Args:
+        tickers: List of ticker symbols
+        start_date: Start date
+        end_date: End date
+        period: Period string
+    
+    Returns:
+        Cache key string
+    """
+    key_str = f"{sorted(tickers)}_{start_date}_{end_date}_{period}"
+    return hashlib.md5(key_str.encode()).hexdigest()
+
+
+def load_cached_data(cache_key: str, max_age_hours: int = 24) -> Optional[pd.DataFrame]:
+    """
+    Load data from cache if it exists and is not too old.
+    
+    Args:
+        cache_key: Cache key for the data
+        max_age_hours: Maximum age of cached data in hours (default 24)
+    
+    Returns:
+        Cached DataFrame or None if not found/too old
+    """
+    cache_file = os.path.join(CACHE_DIR, f"{cache_key}.pkl")
+    metadata_file = os.path.join(CACHE_DIR, f"{cache_key}_meta.pkl")
+    
+    if not os.path.exists(cache_file) or not os.path.exists(metadata_file):
+        return None
+    
+    try:
+        # Check metadata for age
+        with open(metadata_file, 'rb') as f:
+            metadata = pickle.load(f)
+        
+        cache_time = metadata.get('timestamp', datetime.min)
+        age_hours = (datetime.now() - cache_time).total_seconds() / 3600
+        
+        if age_hours > max_age_hours:
+            # Cache too old, remove it
+            os.remove(cache_file)
+            os.remove(metadata_file)
+            return None
+        
+        # Load cached data
+        with open(cache_file, 'rb') as f:
+            data = pickle.load(f)
+        
+        return data
+    except Exception as e:
+        print(f"Error loading cache: {e}")
+        return None
+
+
+def save_to_cache(cache_key: str, data: pd.DataFrame):
+    """
+    Save data to cache.
+    
+    Args:
+        cache_key: Cache key for the data
+        data: DataFrame to cache
+    """
+    cache_file = os.path.join(CACHE_DIR, f"{cache_key}.pkl")
+    metadata_file = os.path.join(CACHE_DIR, f"{cache_key}_meta.pkl")
+    
+    try:
+        # Save data
+        with open(cache_file, 'wb') as f:
+            pickle.dump(data, f)
+        
+        # Save metadata
+        metadata = {
+            'timestamp': datetime.now(),
+            'tickers': list(data.columns.get_level_values(0).unique()) if isinstance(data.columns, pd.MultiIndex) else []
+        }
+        with open(metadata_file, 'wb') as f:
+            pickle.dump(metadata, f)
+    except Exception as e:
+        print(f"Error saving to cache: {e}")
 
 
 def download_data(
     tickers: List[str],
     start_date: str = "2010-01-01",
     end_date: Optional[str] = None,
-    period: Optional[str] = None
+    period: Optional[str] = None,
+    use_cache: bool = True,
+    cache_max_age_hours: int = 24
 ) -> pd.DataFrame:
     """
-    Download historical price data for given tickers.
+    Download historical price data for given tickers with optional caching.
     
     Args:
         tickers: List of ticker symbols (e.g., ['AAPL', 'MSFT'])
         start_date: Start date in 'YYYY-MM-DD' format
         end_date: End date in 'YYYY-MM-DD' format (optional)
         period: Alternative to start/end, e.g., '1y', '5y', 'max'
+        use_cache: Whether to use cached data (default True)
+        cache_max_age_hours: Maximum age of cached data in hours (default 24)
     
     Returns:
         DataFrame with MultiIndex columns (ticker, OHLCV) and Date index
     """
+    # Try to load from cache first
+    if use_cache:
+        cache_key = get_cache_key(tickers, start_date, end_date, period)
+        cached_data = load_cached_data(cache_key, cache_max_age_hours)
+        if cached_data is not None:
+            return cached_data
+    
+    # Download fresh data
     try:
         if period:
             data = yf.download(tickers, period=period, progress=False, auto_adjust=True)
@@ -40,6 +145,11 @@ def download_data(
         # Handle single ticker case (yfinance returns different structure)
         if len(tickers) == 1:
             data.columns = pd.MultiIndex.from_product([tickers, data.columns])
+        
+        # Save to cache
+        if use_cache and not data.empty:
+            cache_key = get_cache_key(tickers, start_date, end_date, period)
+            save_to_cache(cache_key, data)
         
         return data
     except Exception as e:
@@ -178,7 +288,8 @@ def get_company_info(ticker: str) -> Dict:
 def prepare_portfolio_data(
     tickers: List[str],
     start_date: str = "2010-01-01",
-    end_date: Optional[str] = None
+    end_date: Optional[str] = None,
+    use_cache: bool = True
 ) -> tuple:
     """
     Prepare data for portfolio construction.
@@ -187,12 +298,13 @@ def prepare_portfolio_data(
         tickers: List of ticker symbols
         start_date: Start date
         end_date: End date (optional)
+        use_cache: Whether to use cached data (default True)
     
     Returns:
         Tuple of (returns DataFrame, prices DataFrame)
     """
-    # Download data
-    data = download_data(tickers, start_date=start_date, end_date=end_date)
+    # Download data (with caching)
+    data = download_data(tickers, start_date=start_date, end_date=end_date, use_cache=use_cache)
     
     if data.empty:
         return pd.DataFrame(), pd.DataFrame()
@@ -207,4 +319,65 @@ def prepare_portfolio_data(
     returns = get_returns(prices, method='log', frequency='daily')
     
     return returns, prices
+
+
+def clear_cache(older_than_hours: Optional[int] = None):
+    """
+    Clear cached data files.
+    
+    Args:
+        older_than_hours: If specified, only clear files older than this many hours.
+                          If None, clears all cache.
+    """
+    if not os.path.exists(CACHE_DIR):
+        return
+    
+    cleared_count = 0
+    for filename in os.listdir(CACHE_DIR):
+        if filename.endswith('.pkl'):
+            filepath = os.path.join(CACHE_DIR, filename)
+            try:
+                if older_than_hours is None:
+                    os.remove(filepath)
+                    cleared_count += 1
+                else:
+                    file_age_hours = (datetime.now() - datetime.fromtimestamp(os.path.getmtime(filepath))).total_seconds() / 3600
+                    if file_age_hours > older_than_hours:
+                        os.remove(filepath)
+                        cleared_count += 1
+            except Exception as e:
+                print(f"Error removing {filepath}: {e}")
+    
+    return cleared_count
+
+
+def get_cache_info() -> Dict:
+    """
+    Get information about cached data.
+    
+    Returns:
+        Dictionary with cache statistics
+    """
+    if not os.path.exists(CACHE_DIR):
+        return {'total_files': 0, 'total_size_mb': 0, 'oldest_cache': None, 'newest_cache': None}
+    
+    files = [f for f in os.listdir(CACHE_DIR) if f.endswith('_meta.pkl')]
+    total_size = sum(os.path.getsize(os.path.join(CACHE_DIR, f)) for f in os.listdir(CACHE_DIR) if f.endswith('.pkl'))
+    
+    timestamps = []
+    for filename in files:
+        try:
+            metadata_file = os.path.join(CACHE_DIR, filename)
+            with open(metadata_file, 'rb') as f:
+                metadata = pickle.load(f)
+                timestamps.append(metadata.get('timestamp', datetime.min))
+        except:
+            pass
+    
+    return {
+        'total_files': len(files),
+        'total_size_mb': total_size / (1024 * 1024),
+        'oldest_cache': min(timestamps) if timestamps else None,
+        'newest_cache': max(timestamps) if timestamps else None
+    }
 
