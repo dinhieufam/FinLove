@@ -15,6 +15,29 @@ import warnings
 warnings.filterwarnings('ignore')
 
 
+def get_available_solver():
+    """
+    Get the best available solver for portfolio optimization.
+    
+    Returns:
+        Solver name string
+    """
+    # Try solvers in order of preference
+    preferred_solvers = ['ECOS', 'OSQP', 'SCS', 'CLARABEL', 'SCIPY']
+    available = cp.installed_solvers()
+    
+    for solver in preferred_solvers:
+        if solver in available:
+            return solver
+    
+    # Fallback to first available solver
+    if available:
+        return available[0]
+    
+    # Last resort
+    return None
+
+
 def markowitz_optimization(
     expected_returns: pd.Series,
     covariance: pd.DataFrame,
@@ -60,7 +83,11 @@ def markowitz_optimization(
     
     # Solve
     problem = cp.Problem(objective, constraints_list)
-    problem.solve(solver=cp.ECOS, verbose=False)
+    solver = get_available_solver()
+    if solver:
+        problem.solve(solver=solver, verbose=False)
+    else:
+        problem.solve(verbose=False)
     
     if problem.status not in ['optimal', 'optimal_inaccurate']:
         # Fallback to equal weights
