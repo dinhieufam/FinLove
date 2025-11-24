@@ -35,6 +35,21 @@ from src.metrics import (
     maximum_drawdown, value_at_risk, conditional_value_at_risk
 )
 
+# Quick-reference list of popular tickers that many users ask for.
+# Keeping this data structure close to the top allows other modules to import it later if needed.
+COMMON_COMPANY_TICKERS = [
+    {"Company": "Apple Inc.", "Ticker": "AAPL", "Sector": "Technology"},
+    {"Company": "Microsoft Corp.", "Ticker": "MSFT", "Sector": "Technology"},
+    {"Company": "Alphabet (Google)", "Ticker": "GOOGL", "Sector": "Communication Services"},
+    {"Company": "Amazon.com Inc.", "Ticker": "AMZN", "Sector": "Consumer Discretionary"},
+    {"Company": "Meta Platforms", "Ticker": "META", "Sector": "Communication Services"},
+    {"Company": "NVIDIA Corp.", "Ticker": "NVDA", "Sector": "Technology"},
+    {"Company": "Tesla Inc.", "Ticker": "TSLA", "Sector": "Consumer Discretionary"},
+    {"Company": "Netflix Inc.", "Ticker": "NFLX", "Sector": "Communication Services"},
+    {"Company": "JPMorgan Chase", "Ticker": "JPM", "Sector": "Financials"},
+    {"Company": "Johnson & Johnson", "Ticker": "JNJ", "Sector": "Healthcare"},
+]
+
 # Page configuration
 st.set_page_config(
     page_title="FinLove - Portfolio Construction Dashboard",
@@ -64,6 +79,25 @@ st.markdown("""
 
 # Title
 st.markdown('<div class="main-header">📈 FinLove Portfolio Construction Dashboard</div>', unsafe_allow_html=True)
+
+# Quick reference so users immediately see available companies/tickers.
+st.subheader("📋 Quick Company → Ticker Reference")
+quick_ticker_df = pd.DataFrame(COMMON_COMPANY_TICKERS)
+st.dataframe(quick_ticker_df, use_container_width=True, hide_index=True)
+
+# Explain each visualization once so first-time users understand the insights.
+with st.expander("ℹ️ What each chart tells you", expanded=False):
+    st.markdown("""
+    - **Cumulative Returns** – tracks how a dollar invested in the portfolio compares with an equal-weight benchmark.
+    - **Rolling Sharpe Ratio** – shows how risk-adjusted performance evolves (higher = better risk/return balance).
+    - **Drawdown Chart** – highlights peak-to-trough losses so you can assess downside risk.
+    - **Current Portfolio Weights** – displays the latest allocation so you can quickly review exposures.
+    - **Weights Over Time** – reveals how allocations shifted during the backtest, surfacing turnover or drift.
+    - **VaR / CVaR Metrics** – quantify worst-case daily losses at 95% confidence and the expected loss beyond that threshold.
+    - **Rolling Volatility** – indicates how the portfolio’s realized risk is trending over time.
+    - **Returns Distribution** – helps diagnose skew/kurtosis or fat tails relative to assumptions.
+    """)
+
 st.markdown("---")
 
 # Data Management Section (at top of sidebar)
