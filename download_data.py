@@ -25,7 +25,7 @@ POPULAR_STOCKS = [
 ]
 
 # Destination folder for CSVs
-DATASET_DIR = "/home/dang.cpm/__MY_SPACE__/VinUni/Data-Science-Programming/FinLove/Dataset"
+DATASET_DIR = "./Dataset"
 
 def ensure_dir_exists(directory):
     """Ensure data directory exists."""
