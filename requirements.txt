@@ -22,3 +22,5 @@ streamlit>=1.28.0
 # Additional utilities
 tqdm>=4.65.0
 
+# AI explanations (optional)
+openai>=1.12.0
