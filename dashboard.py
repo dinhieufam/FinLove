@@ -48,6 +48,44 @@ COMMON_COMPANY_TICKERS = [
     {"Company": "Netflix Inc.", "Ticker": "NFLX", "Sector": "Communication Services"},
     {"Company": "JPMorgan Chase", "Ticker": "JPM", "Sector": "Financials"},
     {"Company": "Johnson & Johnson", "Ticker": "JNJ", "Sector": "Healthcare"},
+    {"Company": "Bank of America", "Ticker": "BAC", "Sector": "Financials"},
+    {"Company": "The Walt Disney Company", "Ticker": "DIS", "Sector": "Communication Services"},
+    {"Company": "The Home Depot", "Ticker": "HD", "Sector": "Consumer Discretionary"},
+    {"Company": "Mastercard Inc.", "Ticker": "MA", "Sector": "Financials"},
+    {"Company": "Nike Inc.", "Ticker": "NKE", "Sector": "Consumer Discretionary"},
+    {"Company": "Procter & Gamble", "Ticker": "PG", "Sector": "Consumer Staples"},
+    {"Company": "Visa Inc.", "Ticker": "V", "Sector": "Financials"},
+    {"Company": "Walmart Inc.", "Ticker": "WMT", "Sector": "Consumer Staples"},
+]
+
+MODEL_REFERENCE = [
+    {"Model": "Ledoit–Wolf", "Category": "Analyze", "Purpose": "Covariance estimation"},
+    {"Model": "GLASSO", "Category": "Analyze", "Purpose": "Sparse inverse covariance"},
+    {"Model": "GARCH(1,1)", "Category": "Predict", "Purpose": "Volatility forecasts"},
+    {"Model": "DCC", "Category": "Predict", "Purpose": "Correlation forecasts"},
+    {"Model": "Markowitz", "Category": "Analyze/Optimize", "Purpose": "Portfolio construction"},
+    {"Model": "Minimum Variance", "Category": "Analyze/Optimize", "Purpose": "Risk minimization"},
+    {"Model": "Sharpe Maximization", "Category": "Analyze/Optimize", "Purpose": "Risk-adjusted returns"},
+    {"Model": "Black–Litterman", "Category": "Adjusts/Analyzes", "Purpose": "Blended expected returns"},
+    {"Model": "CVaR Optimization", "Category": "Analyze/Optimize", "Purpose": "Tail-risk minimization"},
+]
+
+MODEL_REFERENCE_DF = pd.DataFrame(MODEL_REFERENCE)
+
+# Friendly labels that describe what each optimization / covariance choice does.
+OPTIMIZATION_OPTIONS = [
+    ("Balance growth vs risk (diversified blend)", "markowitz"),
+    ("Keep volatility at a minimum", "min_variance"),
+    ("Maximize risk-adjusted payoff", "sharpe"),
+    ("Blend market consensus with your views", "black_litterman"),
+    ("Protect the tail outcomes", "cvar"),
+]
+
+RISK_MODEL_OPTIONS = [
+    ("Stabilize noisy covariance estimates", "ledoit_wolf"),
+    ("Use raw historical relationships", "sample"),
+    ("Detect sparse dependency structure", "glasso"),
+    ("Forecast time-varying volatility", "garch"),
 ]
 
 # Page configuration
@@ -62,17 +100,38 @@ st.set_page_config(
 st.markdown("""
 <style>
     .main-header {
-        font-size: 2.5rem;
-        font-weight: bold;
-        color: #1f77b4;
+        font-size: 2.7rem;
+        font-weight: 800;
+        color: #0f4c81;
         text-align: center;
-        margin-bottom: 2rem;
+        margin-bottom: 1.5rem;
+    }
+    .section-card {
+        background: linear-gradient(135deg, #f8fbff 0%, #eef3ff 100%);
+        padding: 1.5rem;
+        border-radius: 1rem;
+        border: 1px solid rgba(15, 76, 129, 0.15);
+        box-shadow: 0 4px 12px rgba(15, 76, 129, 0.08);
+        margin-bottom: 1.5rem;
     }
     .metric-card {
-        background-color: #f0f2f6;
+        background: #ffffff;
         padding: 1rem;
-        border-radius: 0.5rem;
-        margin: 0.5rem 0;
+        border-radius: 0.75rem;
+        border: 1px solid rgba(0,0,0,0.05);
+        text-align: center;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+    .metric-card h3 {
+        font-size: 0.95rem;
+        color: #4a4a4a;
+        margin-bottom: 0.4rem;
+    }
+    .metric-card p {
+        font-size: 1.4rem;
+        font-weight: 600;
+        color: #0f4c81;
+        margin: 0;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -81,9 +140,11 @@ st.markdown("""
 st.markdown('<div class="main-header">📈 FinLove Portfolio Construction Dashboard</div>', unsafe_allow_html=True)
 
 # Quick reference so users immediately see available companies/tickers.
-st.subheader("📋 Quick Company → Ticker Reference")
-quick_ticker_df = pd.DataFrame(COMMON_COMPANY_TICKERS)
-st.dataframe(quick_ticker_df, use_container_width=True, hide_index=True)
+with st.container():
+    st.subheader("📋 Quick Company → Ticker Reference")
+    quick_ticker_df = pd.DataFrame(COMMON_COMPANY_TICKERS)
+    st.dataframe(quick_ticker_df, use_container_width=True, hide_index=True)
+    st.caption("Curated from the latest dataset additions so newcomers instantly know which tickers they can try.")
 
 # Explain each visualization once so first-time users understand the insights.
 with st.expander("ℹ️ What each chart tells you", expanded=False):
@@ -167,72 +228,83 @@ with col2:
     )
 
 # Optimization settings
-st.sidebar.subheader("3. Optimization Method")
-optimization_method = st.sidebar.selectbox(
-    "Method",
-    ["markowitz", "min_variance", "sharpe", "black_litterman", "cvar"],
-    help="Select portfolio optimization method"
+st.sidebar.subheader("3. Portfolio Objective")
+opt_labels = [label for label, _ in OPTIMIZATION_OPTIONS]
+opt_label_selection = st.sidebar.selectbox(
+    "How should the engine allocate your capital?",
+    opt_labels,
+    help="Pick the behavior that matches your goal—steady risk, tail protection, or conviction blending."
 )
+optimization_method = dict(OPTIMIZATION_OPTIONS)[opt_label_selection]
 
 # Risk model
-st.sidebar.subheader("4. Risk Model")
-risk_model = st.sidebar.selectbox(
-    "Covariance Estimation",
-    ["ledoit_wolf", "sample", "glasso", "garch"],
-    help="Select covariance estimation method"
+st.sidebar.subheader("4. Risk Engine")
+risk_labels = [label for label, _ in RISK_MODEL_OPTIONS]
+risk_label_selection = st.sidebar.selectbox(
+    "How should relationships between assets be estimated?",
+    risk_labels,
+    help="Choose the description that best matches how you want covariance and volatility to be inferred."
 )
+risk_model = dict(RISK_MODEL_OPTIONS)[risk_label_selection]
 
 # Additional parameters
-st.sidebar.subheader("5. Parameters")
+st.sidebar.subheader("5. Risk Appetite")
 risk_aversion = st.sidebar.slider(
-    "Risk Aversion",
+    "Dial down risk-taking",
     min_value=0.1,
     max_value=10.0,
     value=1.0,
     step=0.1,
-    help="Higher values = more risk averse (for Markowitz)"
+    help="Higher values make the optimizer far more defensive."
 )
 
-transaction_cost = st.sidebar.slider(
-    "Transaction Cost (%)",
-    min_value=0.0,
-    max_value=1.0,
-    value=0.1,
-    step=0.01,
-    help="Proportional transaction cost"
-) / 100
-
-rebalance_band = st.sidebar.slider(
-    "Rebalance Band (%)",
-    min_value=0.0,
-    max_value=20.0,
-    value=5.0,
-    step=0.5,
-    help="Maximum weight drift before rebalancing"
-) / 100
-
 # Backtest type
-st.sidebar.subheader("6. Backtest Type")
+st.sidebar.subheader("6. Testing Style")
 backtest_type = st.sidebar.radio(
-    "Backtest Method",
+    "Choose how to test the portfolio",
     ["Simple (One-time optimization)", "Walk-Forward (Rolling window)"]
 )
 
-if backtest_type == "Walk-Forward (Rolling window)":
-    train_window = st.sidebar.slider(
-        "Training Window (months)",
-        min_value=12,
-        max_value=60,
-        value=36,
-        step=6
-    )
-    test_window = st.sidebar.slider(
-        "Test Window (months)",
-        min_value=1,
-        max_value=12,
-        value=1,
-        step=1
-    )
+# Advanced (optional) knobs so the main UI stays lightweight.
+transaction_cost = 0.001
+rebalance_band = 0.05
+train_window = 36
+test_window = 1
+
+with st.sidebar.expander("Advanced Controls", expanded=False):
+    transaction_cost = st.slider(
+        "Transaction Cost (%)",
+        min_value=0.0,
+        max_value=1.0,
+        value=transaction_cost * 100,
+        step=0.05,
+        help="Proportional round-trip execution cost"
+    ) / 100
+    
+    rebalance_band = st.slider(
+        "Rebalance Band (%)",
+        min_value=0.0,
+        max_value=20.0,
+        value=rebalance_band * 100,
+        step=0.5,
+        help="How much drift you tolerate before trading again"
+    ) / 100
+    
+    if backtest_type == "Walk-Forward (Rolling window)":
+        train_window = st.slider(
+            "Training Window (months)",
+            min_value=12,
+            max_value=60,
+            value=train_window,
+            step=6
+        )
+        test_window = st.slider(
+            "Test Window (months)",
+            min_value=1,
+            max_value=12,
+            value=test_window,
+            step=1
+        )
 
 # Main content area
 if st.sidebar.button("🚀 Run Analysis", type="primary"):
@@ -309,217 +381,171 @@ if 'metrics' in st.session_state:
     prices = st.session_state['prices']
     tickers = st.session_state['tickers']
     
-    # Header with summary
     st.success(f"✅ Analysis complete for {len(tickers)} assets: {', '.join(tickers)}")
     
-    # Key metrics in columns
-    col1, col2, col3, col4 = st.columns(4)
+    analyze_tab, info_tab, predict_tab = st.tabs(["🔍 Analyze", "ℹ️ Information", "🔮 Prediction"])
     
-    with col1:
-        st.metric(
-            "Annualized Return",
-            f"{metrics['annualized_return']*100:.2f}%"
-        )
-    
-    with col2:
-        st.metric(
-            "Annualized Volatility",
-            f"{metrics['annualized_volatility']*100:.2f}%"
-        )
-    
-    with col3:
-        st.metric(
-            "Sharpe Ratio",
-            f"{metrics['sharpe_ratio']:.2f}"
-        )
-    
-    with col4:
-        st.metric(
-            "Max Drawdown",
-            f"{metrics['max_drawdown']*100:.2f}%"
-        )
-    
-    # Tabs for different views
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
-        "📊 Performance", "💰 Portfolio Weights", "📈 Risk Analysis", "🔍 Company Info", "📋 Detailed Metrics"
-    ])
-    
-    with tab1:
-        st.subheader("Portfolio Performance")
+    with analyze_tab:
+        st.subheader("Key takeaways")
+        metric_cols = st.columns(4)
+        metric_cards = [
+            ("Annualized Return", f"{metrics['annualized_return']*100:.2f}%"),
+            ("Annualized Volatility", f"{metrics['annualized_volatility']*100:.2f}%"),
+            ("Sharpe Ratio", f"{metrics['sharpe_ratio']:.2f}"),
+            ("Max Drawdown", f"{metrics['max_drawdown']*100:.2f}%"),
+        ]
+        for col, (title, value) in zip(metric_cols, metric_cards):
+            col.markdown(f"<div class='metric-card'><h3>{title}</h3><p>{value}</p></div>", unsafe_allow_html=True)
         
-        # Cumulative returns
+        st.markdown("#### Portfolio path")
         cumulative_returns = (1 + portfolio_returns).cumprod()
-        cumulative_benchmark = (1 + returns.mean(axis=1)).cumprod()  # Equal-weight benchmark
-        
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
+        cumulative_benchmark = (1 + returns.mean(axis=1)).cumprod()
+        perf_fig = go.Figure()
+        perf_fig.add_trace(go.Scatter(
             x=cumulative_returns.index,
             y=cumulative_returns.values * 100,
             mode='lines',
             name='Portfolio',
             line=dict(color='#1f77b4', width=2)
         ))
-        fig.add_trace(go.Scatter(
+        perf_fig.add_trace(go.Scatter(
             x=cumulative_benchmark.index,
             y=cumulative_benchmark.values * 100,
             mode='lines',
             name='Equal-Weight Benchmark',
             line=dict(color='#ff7f0e', width=2, dash='dash')
         ))
-        fig.update_layout(
+        perf_fig.update_layout(
             title="Cumulative Returns",
             xaxis_title="Date",
             yaxis_title="Cumulative Return (%)",
             hovermode='x unified',
             height=400
         )
-        st.plotly_chart(fig, use_container_width=True)
+        st.plotly_chart(perf_fig, use_container_width=True)
         
-        # Rolling Sharpe
         rolling_sharpe_series = rolling_sharpe(portfolio_returns, window=252)
-        fig2 = go.Figure()
-        fig2.add_trace(go.Scatter(
+        sharpe_fig = go.Figure()
+        sharpe_fig.add_trace(go.Scatter(
             x=rolling_sharpe_series.index,
             y=rolling_sharpe_series.values,
             mode='lines',
             name='Rolling Sharpe (252 days)',
             line=dict(color='green', width=2)
         ))
-        fig2.add_hline(y=0, line_dash="dash", line_color="gray")
-        fig2.update_layout(
+        sharpe_fig.add_hline(y=0, line_dash="dash", line_color="gray")
+        sharpe_fig.update_layout(
             title="Rolling Sharpe Ratio",
             xaxis_title="Date",
             yaxis_title="Sharpe Ratio",
             height=300
         )
-        st.plotly_chart(fig2, use_container_width=True)
+        st.plotly_chart(sharpe_fig, use_container_width=True)
         
-        # Drawdown chart
         cumulative = (1 + portfolio_returns).cumprod()
         running_max = cumulative.expanding().max()
         drawdown = (cumulative - running_max) / running_max * 100
-        
-        fig3 = go.Figure()
-        fig3.add_trace(go.Scatter(
+        drawdown_fig = go.Figure()
+        drawdown_fig.add_trace(go.Scatter(
             x=drawdown.index,
             y=drawdown.values,
             mode='lines',
             fill='tozeroy',
             name='Drawdown',
-            line=dict(color='red', width=1),
-            fillcolor='rgba(255,0,0,0.3)'
+            line=dict(color='#d62728', width=1.5),
+            fillcolor='rgba(214,39,40,0.25)'
         ))
-        fig3.update_layout(
+        drawdown_fig.update_layout(
             title="Portfolio Drawdown",
             xaxis_title="Date",
             yaxis_title="Drawdown (%)",
             height=300
         )
-        st.plotly_chart(fig3, use_container_width=True)
-    
-    with tab2:
-        st.subheader("Portfolio Allocation")
+        st.plotly_chart(drawdown_fig, use_container_width=True)
         
-        # Current weights pie chart
-        fig = go.Figure(data=[go.Pie(
-            labels=weights.index,
-            values=weights.values * 100,
-            hole=0.3
-        )])
-        fig.update_layout(
-            title="Current Portfolio Weights",
-            height=400
-        )
-        st.plotly_chart(fig, use_container_width=True)
+        st.markdown("#### Allocation & risk snapshot")
+        alloc_cols = st.columns((2, 3))
+        with alloc_cols[0]:
+            pie_fig = go.Figure(data=[go.Pie(
+                labels=weights.index,
+                values=weights.values * 100,
+                hole=0.35
+            )])
+            pie_fig.update_layout(title="Current Portfolio Weights", height=350)
+            st.plotly_chart(pie_fig, use_container_width=True)
+        with alloc_cols[1]:
+            if len(weights_history) > 1:
+                stack_fig = go.Figure()
+                for asset in weights_history.columns:
+                    stack_fig.add_trace(go.Scatter(
+                        x=weights_history.index,
+                        y=weights_history[asset].values * 100,
+                        mode='lines',
+                        name=asset,
+                        stackgroup='one'
+                    ))
+                stack_fig.update_layout(
+                    title="Allocation Drift Over Time",
+                    xaxis_title="Date",
+                    yaxis_title="Weight (%)",
+                    hovermode='x unified',
+                    height=350
+                )
+                st.plotly_chart(stack_fig, use_container_width=True)
         
-        # Weights over time
-        if len(weights_history) > 1:
-            fig2 = go.Figure()
-            for asset in weights_history.columns:
-                fig2.add_trace(go.Scatter(
-                    x=weights_history.index,
-                    y=weights_history[asset].values * 100,
-                    mode='lines',
-                    name=asset,
-                    stackgroup='one'
-                ))
-            fig2.update_layout(
-                title="Portfolio Weights Over Time",
-                xaxis_title="Date",
-                yaxis_title="Weight (%)",
-                hovermode='x unified',
-                height=400
-            )
-            st.plotly_chart(fig2, use_container_width=True)
-        
-        # Weights table
-        st.subheader("Current Weights")
         weights_df = pd.DataFrame({
             'Asset': weights.index,
             'Weight (%)': weights.values * 100
         }).sort_values('Weight (%)', ascending=False)
         st.dataframe(weights_df, use_container_width=True)
+        
+        risk_cols = st.columns(4)
+        risk_cols[0].metric("VaR (95%)", f"{metrics['var_95']*100:.2f}%")
+        risk_cols[1].metric("CVaR (95%)", f"{metrics['cvar_95']*100:.2f}%")
+        if 'avg_turnover' in metrics:
+            risk_cols[2].metric("Avg Turnover", f"{metrics['avg_turnover']*100:.2f}%")
+        if 'weight_stability' in metrics:
+            risk_cols[3].metric("Weight Stability", f"{metrics['weight_stability']:.3f}")
+        
+        st.markdown("#### Detailed metrics")
+        metrics_df = pd.DataFrame([
+            ["Annualized Return", f"{metrics['annualized_return']*100:.2f}%"],
+            ["Annualized Volatility", f"{metrics['annualized_volatility']*100:.2f}%"],
+            ["Sharpe Ratio", f"{metrics['sharpe_ratio']:.3f}"],
+            ["Maximum Drawdown", f"{metrics['max_drawdown']*100:.2f}%"],
+            ["Total Return", f"{metrics['total_return']*100:.2f}%"],
+            ["VaR (95%)", f"{metrics['var_95']*100:.2f}%"],
+            ["CVaR (95%)", f"{metrics['cvar_95']*100:.2f}%"],
+        ])
+        if 'avg_turnover' in metrics:
+            metrics_df = pd.concat([
+                metrics_df,
+                pd.DataFrame([
+                    ["Average Turnover", f"{metrics['avg_turnover']*100:.2f}%"],
+                    ["Weight Stability", f"{metrics['weight_stability']:.3f}"]
+                ])
+            ], ignore_index=True)
+        metrics_df.columns = ["Metric", "Value"]
+        st.dataframe(metrics_df, use_container_width=True, hide_index=True)
     
-    with tab3:
-        st.subheader("Risk Analysis")
+    with info_tab:
+        st.subheader("Model map")
+        st.dataframe(MODEL_REFERENCE_DF, use_container_width=True, hide_index=True)
         
-        col1, col2 = st.columns(2)
+        st.subheader("Configuration summary")
+        config_df = pd.DataFrame([
+            ["Portfolio Objective", opt_label_selection],
+            ["Risk Engine", risk_label_selection],
+            ["Risk Appetite Dial", f"{risk_aversion:.2f}"],
+            ["Transaction Cost", f"{transaction_cost*100:.2f}%"],
+            ["Rebalance Band", f"{rebalance_band*100:.2f}%"],
+            ["Backtest Type", backtest_type],
+        ])
+        config_df.columns = ["Parameter", "Value"]
+        st.dataframe(config_df, use_container_width=True, hide_index=True)
         
-        with col1:
-            st.metric("VaR (95%)", f"{metrics['var_95']*100:.2f}%")
-            st.metric("CVaR (95%)", f"{metrics['cvar_95']*100:.2f}%")
-        
-        with col2:
-            if 'avg_turnover' in metrics:
-                st.metric("Avg Turnover", f"{metrics['avg_turnover']*100:.2f}%")
-            if 'weight_stability' in metrics:
-                st.metric("Weight Stability", f"{metrics['weight_stability']:.3f}")
-        
-        # Rolling volatility
-        rolling_vol = rolling_volatility(portfolio_returns, window=252)
-        fig = go.Figure()
-        fig.add_trace(go.Scatter(
-            x=rolling_vol.index,
-            y=rolling_vol.values * 100,
-            mode='lines',
-            name='Rolling Volatility (252 days)',
-            line=dict(color='purple', width=2)
-        ))
-        fig.update_layout(
-            title="Rolling Volatility",
-            xaxis_title="Date",
-            yaxis_title="Volatility (%)",
-            height=300
-        )
-        st.plotly_chart(fig, use_container_width=True)
-        
-        # Returns distribution
-        fig2 = go.Figure()
-        fig2.add_trace(go.Histogram(
-            x=portfolio_returns.values * 100,
-            nbinsx=50,
-            name='Portfolio Returns',
-            marker_color='blue'
-        ))
-        fig2.add_vline(
-            x=metrics['var_95'] * 100,
-            line_dash="dash",
-            line_color="red",
-            annotation_text="VaR (95%)"
-        )
-        fig2.update_layout(
-            title="Returns Distribution",
-            xaxis_title="Daily Return (%)",
-            yaxis_title="Frequency",
-            height=300
-        )
-        st.plotly_chart(fig2, use_container_width=True)
-    
-    with tab4:
-        st.subheader("Company Information")
-        
-        # Display info for each ticker
-        for ticker in tickers[:10]:  # Limit to first 10 to avoid too many API calls
+        st.subheader("Company snapshots")
+        for ticker in tickers[:10]:
             try:
                 info = get_company_info(ticker)
                 with st.expander(f"📊 {ticker} - {info.get('name', ticker)}"):
@@ -543,43 +569,56 @@ if 'metrics' in st.session_state:
             except Exception as e:
                 st.warning(f"Could not fetch info for {ticker}: {str(e)}")
     
-    with tab5:
-        st.subheader("Detailed Performance Metrics")
+    with predict_tab:
+        st.subheader("Forward-looking diagnostics")
+        st.info("These diagnostics translate the chosen risk engine into volatility and tail-risk insights. Use them to understand how today’s configuration might behave tomorrow.")
         
-        metrics_df = pd.DataFrame([
-            ["Annualized Return", f"{metrics['annualized_return']*100:.2f}%"],
-            ["Annualized Volatility", f"{metrics['annualized_volatility']*100:.2f}%"],
-            ["Sharpe Ratio", f"{metrics['sharpe_ratio']:.3f}"],
-            ["Maximum Drawdown", f"{metrics['max_drawdown']*100:.2f}%"],
-            ["Total Return", f"{metrics['total_return']*100:.2f}%"],
-            ["VaR (95%)", f"{metrics['var_95']*100:.2f}%"],
-            ["CVaR (95%)", f"{metrics['cvar_95']*100:.2f}%"],
-        ])
+        rolling_vol = rolling_volatility(portfolio_returns, window=252)
+        vol_fig = go.Figure()
+        vol_fig.add_trace(go.Scatter(
+            x=rolling_vol.index,
+            y=rolling_vol.values * 100,
+            mode='lines',
+            name='Rolling Volatility (252 days)',
+            line=dict(color='#6a1b9a', width=2)
+        ))
+        vol_fig.update_layout(
+            title="Volatility Outlook",
+            xaxis_title="Date",
+            yaxis_title="Volatility (%)",
+            height=320
+        )
+        st.plotly_chart(vol_fig, use_container_width=True)
         
-        if 'avg_turnover' in metrics:
-            metrics_df = pd.concat([
-                metrics_df,
-                pd.DataFrame([
-                    ["Average Turnover", f"{metrics['avg_turnover']*100:.2f}%"],
-                    ["Weight Stability", f"{metrics['weight_stability']:.3f}"]
-                ])
-            ], ignore_index=True)
+        hist_fig = go.Figure()
+        hist_fig.add_trace(go.Histogram(
+            x=portfolio_returns.values * 100,
+            nbinsx=50,
+            name='Portfolio Returns',
+            marker_color='#1f77b4'
+        ))
+        hist_fig.add_vline(
+            x=metrics['var_95'] * 100,
+            line_dash="dash",
+            line_color="#d62728",
+            annotation_text="VaR (95%)"
+        )
+        hist_fig.update_layout(
+            title="Distribution Of Returns",
+            xaxis_title="Daily Return (%)",
+            yaxis_title="Frequency",
+            height=320
+        )
+        st.plotly_chart(hist_fig, use_container_width=True)
         
-        metrics_df.columns = ["Metric", "Value"]
-        st.dataframe(metrics_df, use_container_width=True, hide_index=True)
-        
-        # Configuration summary
-        st.subheader("Configuration Summary")
-        config_df = pd.DataFrame([
-            ["Optimization Method", optimization_method],
-            ["Risk Model", risk_model],
-            ["Risk Aversion", f"{risk_aversion:.2f}"],
-            ["Transaction Cost", f"{transaction_cost*100:.2f}%"],
-            ["Rebalance Band", f"{rebalance_band*100:.2f}%"],
-            ["Backtest Type", backtest_type],
-        ])
-        config_df.columns = ["Parameter", "Value"]
-        st.dataframe(config_df, use_container_width=True, hide_index=True)
+        if risk_model == "garch":
+            st.success("Because you selected a volatility-forecasting engine, emphasis is placed on recent volatility spikes and decay.")
+        elif risk_model == "glasso":
+            st.success("Sparse dependency modeling highlights clusters of assets that move together—great for stress testing correlation breakdowns.")
+        elif risk_model == "ledoit_wolf":
+            st.success("Shrinkage keeps the covariance matrix stable, so the predicted volatility path is smoother than raw history.")
+        else:
+            st.success("Sample covariance reflects pure historical co-movement. Combine with walk-forward testing to validate robustness.")
 
 else:
     # Initial state - show instructions
