@@ -5,52 +5,65 @@ This module handles downloading financial data from Yahoo Finance,
 computing returns, and creating features for portfolio construction.
 """
 
-import yfinance as yf
-import pandas as pd
-import numpy as np
-from typing import List, Optional, Dict
-import warnings
+# Standard library imports
+import hashlib
 import os
 import pickle
+import warnings
 from datetime import datetime, timedelta
-import hashlib
+from typing import Any, Dict, List, Optional
+
+# Third-party imports
+import numpy as np
+import pandas as pd
+import yfinance as yf
+
+# Suppress warnings
 warnings.filterwarnings('ignore')
 
-# Cache directory
+# Module-level constants
 CACHE_DIR = os.path.join(os.path.dirname(__file__), '..', 'data_cache')
-os.makedirs(CACHE_DIR, exist_ok=True)
-
-# Dataset directory (for pre-downloaded CSV files)
 DATASET_DIR = os.path.join(os.path.dirname(__file__), '..', 'Dataset')
 
+# Create cache directory if it doesn't exist
+os.makedirs(CACHE_DIR, exist_ok=True)
 
-def get_cache_key(tickers: List[str], start_date: str, end_date: Optional[str], period: Optional[str]) -> str:
+
+def get_cache_key(
+    tickers: List[str],
+    start_date: str,
+    end_date: Optional[str],
+    period: Optional[str]
+) -> str:
     """
     Generate a cache key for the data request.
-    
+
     Args:
-        tickers: List of ticker symbols
-        start_date: Start date
-        end_date: End date
-        period: Period string
-    
+        tickers: List of ticker symbols.
+        start_date: Start date string.
+        end_date: End date string (optional).
+        period: Period string (optional).
+
     Returns:
-        Cache key string
+        Cache key string (MD5 hash).
     """
     key_str = f"{sorted(tickers)}_{start_date}_{end_date}_{period}"
     return hashlib.md5(key_str.encode()).hexdigest()
 
 
-def load_cached_data(cache_key: str, max_age_hours: int = 24) -> Optional[pd.DataFrame]:
+def load_cached_data(
+    cache_key: str,
+    max_age_hours: int = 24
+) -> Optional[pd.DataFrame]:
     """
     Load data from cache if it exists and is not too old.
-    
+
     Args:
-        cache_key: Cache key for the data
-        max_age_hours: Maximum age of cached data in hours (default 24)
-    
+        cache_key: Cache key for the data.
+        max_age_hours: Maximum age of cached data in hours. Defaults to 24.
+
     Returns:
-        Cached DataFrame or None if not found/too old
+        Cached DataFrame or None if not found or too old.
     """
     cache_file = os.path.join(CACHE_DIR, f"{cache_key}.pkl")
     metadata_file = os.path.join(CACHE_DIR, f"{cache_key}_meta.pkl")
@@ -82,13 +95,13 @@ def load_cached_data(cache_key: str, max_age_hours: int = 24) -> Optional[pd.Dat
         return None
 
 
-def save_to_cache(cache_key: str, data: pd.DataFrame):
+def save_to_cache(cache_key: str, data: pd.DataFrame) -> None:
     """
     Save data to cache.
-    
+
     Args:
-        cache_key: Cache key for the data
-        data: DataFrame to cache
+        cache_key: Cache key for the data.
+        data: DataFrame to cache.
     """
     cache_file = os.path.join(CACHE_DIR, f"{cache_key}.pkl")
     metadata_file = os.path.join(CACHE_DIR, f"{cache_key}_meta.pkl")
@@ -109,20 +122,26 @@ def save_to_cache(cache_key: str, data: pd.DataFrame):
         print(f"Error saving to cache: {e}")
 
 
-def load_from_dataset_csv(tickers: List[str], start_date: str = None, end_date: str = None) -> Optional[pd.DataFrame]:
+def load_from_dataset_csv(
+    tickers: List[str],
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+) -> Optional[pd.DataFrame]:
     """
     Load data from pre-downloaded CSV files in the Dataset directory.
-    
-    This function searches for CSV files matching the pattern: {TICKER}_{start_date}_to_{end_date}.csv
-    and loads them into a MultiIndex DataFrame format compatible with the rest of the codebase.
-    
+
+    This function searches for CSV files matching the pattern:
+    {TICKER}_{start_date}_to_{end_date}.csv and loads them into a MultiIndex
+    DataFrame format compatible with the rest of the codebase.
+
     Args:
-        tickers: List of ticker symbols to load
-        start_date: Start date string (optional, for matching file names)
-        end_date: End date string (optional, for matching file names)
-    
+        tickers: List of ticker symbols to load.
+        start_date: Start date string (optional, for matching file names).
+        end_date: End date string (optional, for matching file names).
+
     Returns:
-        DataFrame with MultiIndex columns (ticker, OHLCV) and Date index, or None if files not found
+        DataFrame with MultiIndex columns (ticker, OHLCV) and Date index,
+        or None if files not found.
     """
     if not os.path.exists(DATASET_DIR):
         return None
@@ -227,22 +246,22 @@ def download_data(
 ) -> pd.DataFrame:
     """
     Download historical price data for given tickers with optional caching.
-    
+
     This function tries multiple data sources in order:
     1. Pre-downloaded CSV files in Dataset directory
     2. Cached pickle files in data_cache directory
     3. Download from Yahoo Finance via yfinance
-    
+
     Args:
-        tickers: List of ticker symbols (e.g., ['AAPL', 'MSFT'])
-        start_date: Start date in 'YYYY-MM-DD' format
-        end_date: End date in 'YYYY-MM-DD' format (optional)
-        period: Alternative to start/end, e.g., '1y', '5y', 'max'
-        use_cache: Whether to use cached data (default True)
-        cache_max_age_hours: Maximum age of cached data in hours (default 24)
-    
+        tickers: List of ticker symbols (e.g., ['AAPL', 'MSFT']).
+        start_date: Start date in 'YYYY-MM-DD' format. Defaults to "2010-01-01".
+        end_date: End date in 'YYYY-MM-DD' format (optional).
+        period: Alternative to start/end, e.g., '1y', '5y', 'max' (optional).
+        use_cache: Whether to use cached data. Defaults to True.
+        cache_max_age_hours: Maximum age of cached data in hours. Defaults to 24.
+
     Returns:
-        DataFrame with MultiIndex columns (ticker, OHLCV) and Date index
+        DataFrame with MultiIndex columns (ticker, OHLCV) and Date index.
     """
     # First, try to load from pre-downloaded CSV files in Dataset directory
     csv_data = load_from_dataset_csv(tickers, start_date, end_date)
@@ -344,14 +363,14 @@ def get_returns(
 ) -> pd.DataFrame:
     """
     Calculate returns from price data.
-    
+
     Args:
-        prices: DataFrame with price data (typically 'Close' or 'Adj Close')
-        method: 'log' for log returns, 'simple' for simple returns
-        frequency: 'daily', 'weekly', 'monthly' for aggregation
-    
+        prices: DataFrame with price data (typically 'Close' or 'Adj Close').
+        method: 'log' for log returns, 'simple' for simple returns. Defaults to 'log'.
+        frequency: 'daily', 'weekly', 'monthly' for aggregation. Defaults to 'daily'.
+
     Returns:
-        DataFrame with returns
+        DataFrame with returns.
     """
     if method == 'log':
         returns = np.log(prices / prices.shift(1))
@@ -376,13 +395,13 @@ def compute_features(
 ) -> pd.DataFrame:
     """
     Compute technical indicators and features for a single ticker.
-    
+
     Args:
-        data: DataFrame with OHLCV data for the ticker
-        ticker: Ticker symbol
-    
+        data: DataFrame with OHLCV data for the ticker.
+        ticker: Ticker symbol.
+
     Returns:
-        DataFrame with additional feature columns
+        DataFrame with additional feature columns.
     """
     df = data.copy()
     
@@ -432,15 +451,15 @@ def compute_features(
     return df
 
 
-def get_company_info(ticker: str) -> Dict:
+def get_company_info(ticker: str) -> Dict[str, Any]:
     """
     Get company information from Yahoo Finance.
-    
+
     Args:
-        ticker: Ticker symbol
-    
+        ticker: Ticker symbol.
+
     Returns:
-        Dictionary with company information
+        Dictionary with company information (symbol, name, sector, etc.).
     """
     try:
         stock = yf.Ticker(ticker)
@@ -470,18 +489,18 @@ def prepare_portfolio_data(
     start_date: str = "2010-01-01",
     end_date: Optional[str] = None,
     use_cache: bool = True
-) -> tuple:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Prepare data for portfolio construction.
-    
+
     Args:
-        tickers: List of ticker symbols
-        start_date: Start date
-        end_date: End date (optional)
-        use_cache: Whether to use cached data (default True)
-    
+        tickers: List of ticker symbols.
+        start_date: Start date string. Defaults to "2010-01-01".
+        end_date: End date string (optional).
+        use_cache: Whether to use cached data. Defaults to True.
+
     Returns:
-        Tuple of (returns DataFrame, prices DataFrame)
+        Tuple of (returns DataFrame, prices DataFrame).
     """
     # Download data (with caching)
     data = download_data(tickers, start_date=start_date, end_date=end_date, use_cache=use_cache)
@@ -535,13 +554,16 @@ def prepare_portfolio_data(
     return returns, prices
 
 
-def clear_cache(older_than_hours: Optional[int] = None):
+def clear_cache(older_than_hours: Optional[int] = None) -> int:
     """
     Clear cached data files.
-    
+
     Args:
         older_than_hours: If specified, only clear files older than this many hours.
-                          If None, clears all cache.
+            If None, clears all cache.
+
+    Returns:
+        Number of files cleared.
     """
     if not os.path.exists(CACHE_DIR):
         return
@@ -565,12 +587,12 @@ def clear_cache(older_than_hours: Optional[int] = None):
     return cleared_count
 
 
-def get_cache_info() -> Dict:
+def get_cache_info() -> Dict[str, Any]:
     """
     Get information about cached data.
-    
+
     Returns:
-        Dictionary with cache statistics
+        Dictionary with cache statistics (total_files, total_size_mb, etc.).
     """
     if not os.path.exists(CACHE_DIR):
         return {'total_files': 0, 'total_size_mb': 0, 'oldest_cache': None, 'newest_cache': None}
@@ -585,7 +607,7 @@ def get_cache_info() -> Dict:
             with open(metadata_file, 'rb') as f:
                 metadata = pickle.load(f)
                 timestamps.append(metadata.get('timestamp', datetime.min))
-        except:
+        except Exception:
             pass
     
     return {

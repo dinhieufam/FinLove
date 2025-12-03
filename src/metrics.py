@@ -9,10 +9,15 @@ Computes various portfolio performance and risk metrics:
 - Weight stability
 """
 
+# Standard library imports
+import warnings
+from typing import Any, Dict, Optional, Tuple
+
+# Third-party imports
 import numpy as np
 import pandas as pd
-from typing import Optional, Tuple
-import warnings
+
+# Suppress warnings
 warnings.filterwarnings('ignore')
 
 
@@ -266,7 +271,7 @@ def calculate_all_metrics(
     portfolio_returns: pd.Series,
     weights_history: Optional[pd.DataFrame] = None,
     risk_free_rate: float = 0.0
-) -> dict:
+) -> Dict[str, Any]:
     """
     Calculate comprehensive portfolio performance metrics.
     

@@ -88,6 +88,72 @@ RISK_MODEL_OPTIONS = [
     ("Forecast time-varying volatility", "garch"),
 ]
 
+INSIGHT_SYSTEM_PROMPT = (
+    "You are a concise financial coach explaining charts to beginners. "
+    "Keep explanations to 2-3 sentences, avoid jargon, and connect numbers to practical meaning. "
+    "Close with a plain-language cue on whether to lean in or stay cautious, framed as education—not advice."
+)
+
+
+def format_pct(value: float, decimals: int = 1) -> str:
+    """Format percentages safely."""
+    try:
+        return f"{value * 100:.{decimals}f}%"
+    except Exception:
+        return "n/a"
+
+
+def generate_ai_insight(title: str, stats_text: str, default_text: str) -> str:
+    """
+    Return an LLM-generated explanation when enabled, otherwise fall back to a deterministic summary.
+    """
+    ai_enabled = st.session_state.get("enable_ai_insights", False)
+    if not ai_enabled:
+        return default_text
+    
+    api_key = st.session_state.get("llm_api_key")
+    if not api_key:
+        return default_text + " (Add an OpenAI API key in the sidebar to enable AI commentary.)"
+    
+    model = st.session_state.get("llm_model", "gpt-3.5-turbo")
+    prompt = (
+        f"Chart: {title}\n"
+        f"Context stats: {stats_text}\n"
+        "Explain what the chart says about the portfolio for a novice investor, then finish with either "
+        "'Lean in because …' or 'Stay cautious because …'. This is educational, not investment advice."
+    )
+    
+    try:
+        from openai import OpenAI  # type: ignore
+        
+        client = OpenAI(api_key=api_key)
+        response = client.chat.completions.create(
+            model=model,
+            messages=[
+                {"role": "system", "content": INSIGHT_SYSTEM_PROMPT},
+                {"role": "user", "content": prompt},
+            ],
+            temperature=0.35,
+            max_tokens=200,
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        return default_text + f" (AI unavailable: {e})"
+
+
+def render_insight_box(title: str, stats_text: str, default_text: str):
+    """Render a styled insight card."""
+    insight_text = generate_ai_insight(title, stats_text, default_text)
+    st.markdown(
+        f"""
+        <div class="insight-card">
+            <div class="insight-title">AI insight — {title}</div>
+            <div class="insight-body">{insight_text}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
 # Page configuration
 st.set_page_config(
     page_title="FinLove - Portfolio Construction Dashboard",
@@ -99,6 +165,10 @@ st.set_page_config(
 # Custom CSS
 st.markdown("""
 <style>
+    body {
+        background: radial-gradient(circle at 10% 20%, #f8fbff 0%, #f3f6ff 25%, #eef3ff 50%, #fdfdff 100%);
+        color: #1f2933;
+    }
     .main-header {
         font-size: 2.7rem;
         font-weight: 800;
@@ -132,6 +202,27 @@ st.markdown("""
         font-weight: 600;
         color: #0f4c81;
         margin: 0;
+    }
+    .insight-card {
+        background: linear-gradient(135deg, #0f4c81 0%, #0a2f57 100%);
+        color: #f7fbff;
+        padding: 1rem 1.1rem;
+        border-radius: 0.85rem;
+        box-shadow: 0 8px 24px rgba(10, 47, 87, 0.18);
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        height: 100%;
+    }
+    .insight-title {
+        font-weight: 700;
+        letter-spacing: 0.2px;
+        margin-bottom: 0.4rem;
+        text-transform: uppercase;
+        font-size: 0.75rem;
+        opacity: 0.85;
+    }
+    .insight-body {
+        font-size: 0.95rem;
+        line-height: 1.4;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -264,6 +355,33 @@ backtest_type = st.sidebar.radio(
     "Choose how to test the portfolio",
     ["Simple (One-time optimization)", "Walk-Forward (Rolling window)"]
 )
+
+# AI explanations
+st.sidebar.subheader("7. AI Explanations")
+enable_ai_insights = st.sidebar.checkbox(
+    "Turn on AI chart explanations",
+    value=st.session_state.get("enable_ai_insights", False),
+    help="Requires an OpenAI API key. If off, you will see deterministic summaries."
+)
+st.session_state["enable_ai_insights"] = enable_ai_insights
+
+llm_api_key = st.sidebar.text_input(
+    "OpenAI API Key",
+    value=st.session_state.get("llm_api_key", ""),
+    type="password",
+    placeholder="sk-...",
+    help="Key is stored only in your local Streamlit session."
+)
+if llm_api_key:
+    st.session_state["llm_api_key"] = llm_api_key
+
+llm_model = st.sidebar.selectbox(
+    "Model",
+    ["gpt-4o-mini", "gpt-3.5-turbo"],
+    index=0,
+    help="Short explanations work well on lighter models."
+)
+st.session_state["llm_model"] = llm_model
 
 # Advanced (optional) knobs so the main UI stays lightweight.
 transaction_cost = 0.001
@@ -422,7 +540,23 @@ if 'metrics' in st.session_state:
             hovermode='x unified',
             height=400
         )
-        st.plotly_chart(perf_fig, use_container_width=True)
+        perf_cols = st.columns([3, 1.2])
+        with perf_cols[0]:
+            st.plotly_chart(perf_fig, use_container_width=True)
+        port_total = cumulative_returns.iloc[-1] - 1
+        bench_total = cumulative_benchmark.iloc[-1] - 1
+        perf_gap = port_total - bench_total
+        perf_default = (
+            f"Portfolio delivered {format_pct(port_total, 2)} vs benchmark {format_pct(bench_total, 2)}, "
+            f"for a spread of {format_pct(perf_gap, 2)}. "
+            "Lean in if you believe this edge is durable; stay cautious if the lead came from a few lucky bursts."
+        )
+        perf_stats = (
+            f"Portfolio total return {port_total:.4f}; benchmark {bench_total:.4f}; "
+            f"best day {portfolio_returns.max():.4f}; worst day {portfolio_returns.min():.4f}."
+        )
+        with perf_cols[1]:
+            render_insight_box("Cumulative Returns", perf_stats, perf_default)
         
         rolling_sharpe_series = rolling_sharpe(portfolio_returns, window=252)
         sharpe_fig = go.Figure()
@@ -440,7 +574,23 @@ if 'metrics' in st.session_state:
             yaxis_title="Sharpe Ratio",
             height=300
         )
-        st.plotly_chart(sharpe_fig, use_container_width=True)
+        sharpe_cols = st.columns([3, 1.2])
+        with sharpe_cols[0]:
+            st.plotly_chart(sharpe_fig, use_container_width=True)
+        sharpe_latest = rolling_sharpe_series.dropna().iloc[-1] if not rolling_sharpe_series.dropna().empty else 0.0
+        sharpe_mean = rolling_sharpe_series.mean()
+        sharpe_above_zero = (rolling_sharpe_series > 0).mean()
+        sharpe_default = (
+            f"Latest rolling Sharpe is {sharpe_latest:.2f} vs average {sharpe_mean:.2f}; "
+            f"{sharpe_above_zero*100:.0f}% of the window stays above zero. "
+            "Lean in if Sharpe stays stable above zero; stay cautious if it’s chopping around flat or negative."
+        )
+        sharpe_stats = (
+            f"Latest Sharpe {sharpe_latest:.3f}; mean {sharpe_mean:.3f}; "
+            f"pct positive {sharpe_above_zero:.3f}; sample size {rolling_sharpe_series.count()}."
+        )
+        with sharpe_cols[1]:
+            render_insight_box("Rolling Sharpe", sharpe_stats, sharpe_default)
         
         cumulative = (1 + portfolio_returns).cumprod()
         running_max = cumulative.expanding().max()
@@ -461,10 +611,24 @@ if 'metrics' in st.session_state:
             yaxis_title="Drawdown (%)",
             height=300
         )
-        st.plotly_chart(drawdown_fig, use_container_width=True)
+        draw_cols = st.columns([3, 1.2])
+        with draw_cols[0]:
+            st.plotly_chart(drawdown_fig, use_container_width=True)
+        max_dd = drawdown.min()
+        latest_dd = drawdown.iloc[-1]
+        dd_default = (
+            f"Deepest drawdown reached {max_dd:.2f}% and the latest drawdown sits at {latest_dd:.2f}%. "
+            "Lean in if you’re comfortable with that depth; stay cautious if this pain level is beyond your tolerance."
+        )
+        dd_stats = (
+            f"Max drawdown {max_dd:.3f}%; latest {latest_dd:.3f}%; "
+            f"number of drawdown days {drawdown.count()}."
+        )
+        with draw_cols[1]:
+            render_insight_box("Drawdown", dd_stats, dd_default)
         
         st.markdown("#### Allocation & risk snapshot")
-        alloc_cols = st.columns((2, 3))
+        alloc_cols = st.columns((2.2, 3, 1.6))
         with alloc_cols[0]:
             pie_fig = go.Figure(data=[go.Pie(
                 labels=weights.index,
@@ -492,6 +656,18 @@ if 'metrics' in st.session_state:
                     height=350
                 )
                 st.plotly_chart(stack_fig, use_container_width=True)
+        top_weights = weights.sort_values(ascending=False).head(3)
+        turnover = metrics.get("avg_turnover")
+        weight_stats = (
+            f"Top weights: {', '.join([f'{idx} {format_pct(val)}' for idx, val in top_weights.items()])}. "
+            f"Turnover: {format_pct(turnover) if turnover is not None else 'n/a'}."
+        )
+        weight_default = (
+            "Largest tilts sit in the top three names; turnover figures hint at how active rebalancing was. "
+            "Lean in if you agree with the top convictions; stay cautious if concentration feels too high."
+        )
+        with alloc_cols[2]:
+            render_insight_box("Allocations", weight_stats, weight_default)
         
         weights_df = pd.DataFrame({
             'Asset': weights.index,
@@ -588,7 +764,21 @@ if 'metrics' in st.session_state:
             yaxis_title="Volatility (%)",
             height=320
         )
-        st.plotly_chart(vol_fig, use_container_width=True)
+        vol_cols = st.columns([3, 1.2])
+        with vol_cols[0]:
+            st.plotly_chart(vol_fig, use_container_width=True)
+        latest_vol = rolling_vol.dropna().iloc[-1] if not rolling_vol.dropna().empty else 0.0
+        mean_vol = rolling_vol.mean()
+        vol_default = (
+            f"Recent volatility sits near {format_pct(latest_vol, 2)} vs a {format_pct(mean_vol, 2)} average. "
+            "Lean in if you can stomach swings at this level; stay cautious if you need smoother rides."
+        )
+        vol_stats = (
+            f"Latest rolling volatility {latest_vol:.4f}; mean {mean_vol:.4f}; "
+            f"window length {rolling_vol.count()}."
+        )
+        with vol_cols[1]:
+            render_insight_box("Volatility Outlook", vol_stats, vol_default)
         
         hist_fig = go.Figure()
         hist_fig.add_trace(go.Histogram(
@@ -609,7 +799,25 @@ if 'metrics' in st.session_state:
             yaxis_title="Frequency",
             height=320
         )
-        st.plotly_chart(hist_fig, use_container_width=True)
+        dist_cols = st.columns([3, 1.2])
+        with dist_cols[0]:
+            st.plotly_chart(hist_fig, use_container_width=True)
+        returns_np = portfolio_returns.dropna()
+        skew_val = returns_np.skew()
+        kurt_val = returns_np.kurt()
+        var_val = metrics.get("var_95", 0)
+        cvar_val = metrics.get("cvar_95", 0)
+        dist_default = (
+            f"Typical daily move is ~{format_pct(returns_np.std(), 2)}; "
+            f"VaR 95 is {format_pct(var_val, 2)}, CVaR 95 is {format_pct(cvar_val, 2)}. "
+            "Lean in if these tail-loss levels fit your risk budget; stay cautious if the downside feels steep."
+        )
+        dist_stats = (
+            f"Stdev {returns_np.std():.4f}; skew {skew_val:.3f}; kurtosis {kurt_val:.3f}; "
+            f"VaR {var_val:.4f}; CVaR {cvar_val:.4f}."
+        )
+        with dist_cols[1]:
+            render_insight_box("Return Distribution", dist_stats, dist_default)
         
         if risk_model == "garch":
             st.success("Because you selected a volatility-forecasting engine, emphasis is placed on recent volatility spikes and decay.")
@@ -644,4 +852,3 @@ else:
     
     Start by selecting your assets and configuration in the sidebar!
     """)
-
