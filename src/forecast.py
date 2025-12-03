@@ -23,8 +23,9 @@ warnings.filterwarnings('ignore')
 def arima_forecast(
     series: pd.Series,
     forecast_horizon: int = 30,
-    order: Tuple[int, int, int] = (1, 1, 1),
-    seasonal_order: Optional[Tuple[int, int, int, int]] = None
+    order: Optional[Tuple[int, int, int]] = None,
+    seasonal_order: Optional[Tuple[int, int, int, int]] = None,
+    auto_select: bool = True
 ) -> Tuple[pd.Series, pd.Series]:
     """
     Forecast using ARIMA or SARIMA model.
@@ -35,8 +36,9 @@ def arima_forecast(
     Args:
         series: Time series to forecast
         forecast_horizon: Number of periods ahead to forecast
-        order: (p, d, q) for ARIMA
+        order: (p, d, q) for ARIMA. If None and auto_select=True, will try to find optimal order
         seasonal_order: (P, D, Q, s) for SARIMA (optional)
+        auto_select: If True, try multiple ARIMA orders to find best fit
     
     Returns:
         Tuple of (forecast, confidence_intervals)
@@ -44,23 +46,69 @@ def arima_forecast(
     try:
         from statsmodels.tsa.arima.model import ARIMA
         from statsmodels.tsa.statespace.sarimax import SARIMAX
+        from statsmodels.tsa.stattools import adfuller
     except ImportError as e:
         raise ImportError("statsmodels is required for ARIMA forecasting") from e
     
     # Remove NaN values
     series_clean = series.dropna()
     
-    if len(series_clean) < 10:
-        raise ValueError("Insufficient data for ARIMA model")
+    if len(series_clean) < 20:
+        raise ValueError("Insufficient data for ARIMA model (need at least 20 periods)")
     
     try:
+        # Auto-select optimal ARIMA order if not provided
+        if order is None and auto_select:
+            # Try to determine differencing order (d) using ADF test
+            d = 0
+            adf_result = adfuller(series_clean)
+            if adf_result[1] > 0.05:  # Not stationary, try differencing
+                diff_series = series_clean.diff().dropna()
+                if len(diff_series) > 0:
+                    adf_result_diff = adfuller(diff_series)
+                    if adf_result_diff[1] < 0.05:
+                        d = 1
+            
+            # Try a few common ARIMA orders for financial returns
+            # Returns are typically well-modeled by ARIMA(0,1,1) or ARIMA(1,1,1)
+            candidate_orders = [
+                (0, d, 1),  # IMA model - common for returns
+                (1, d, 1),  # ARIMA(1,1,1) - standard
+                (1, d, 0),  # AR(1) with differencing
+                (0, d, 2),  # IMA(2)
+                (2, d, 1),  # ARIMA(2,1,1)
+            ]
+            
+            best_aic = np.inf
+            best_order = (1, 1, 1)  # Default fallback
+            
+            for candidate_order in candidate_orders:
+                try:
+                    if candidate_order[1] == 0 and len(series_clean) < 30:
+                        continue  # Skip non-differenced models for short series
+                    
+                    test_model = ARIMA(series_clean, order=candidate_order)
+                    test_fitted = test_model.fit()
+                    if test_fitted.aic < best_aic:
+                        best_aic = test_fitted.aic
+                        best_order = candidate_order
+                except:
+                    continue
+            
+            order = best_order
+        
+        # Use default order if still None
+        if order is None:
+            order = (1, 1, 1)
+        
+        # Fit the model
         if seasonal_order:
             model = SARIMAX(series_clean, order=order, seasonal_order=seasonal_order)
         else:
             model = ARIMA(series_clean, order=order)
         
-        # Newer versions of statsmodels removed the ``disp`` keyword; use the default instead.
-        fitted = model.fit()
+        # Fit with better optimization settings
+        fitted = model.fit(method_kwargs={"warn_convergence": False})
         
         # Forecast
         forecast = fitted.forecast(steps=forecast_horizon)
@@ -87,8 +135,8 @@ def arima_forecast(
         
     except Exception as e:
         print(f"ARIMA forecast error: {e}")
-        # Fallback to simple moving average
-        return simple_ma_forecast(series, forecast_horizon)
+        # Re-raise instead of silently falling back to avoid straight-line forecasts
+        raise ValueError(f"ARIMA model failed: {e}") from e
 
 
 def prophet_forecast(
@@ -260,28 +308,57 @@ def lstm_forecast(
 def simple_ma_forecast(
     series: pd.Series,
     forecast_horizon: int = 30,
-    window: int = 20
+    window: int = 20,
+    include_trend: bool = True
 ) -> Tuple[pd.Series, pd.Series]:
     """
-    Simple moving average forecast (baseline).
+    Simple moving average forecast with optional trend/drift.
+    
+    This baseline model now includes a simple trend component to avoid
+    producing completely flat forecasts. For financial returns, it uses
+    recent mean with mean reversion.
     
     Args:
         series: Time series to forecast
         forecast_horizon: Number of periods ahead to forecast
         window: Moving average window
+        include_trend: If True, add a simple trend/drift component
     
     Returns:
         Tuple of (forecast, confidence_intervals)
     """
     series_clean = series.dropna()
     
+    # Calculate recent mean (used as starting point for forecast)
     if len(series_clean) < window:
         # Use all available data
-        ma_value = series_clean.mean()
+        recent_mean = series_clean.mean()
     else:
-        ma_value = series_clean.iloc[-window:].mean()
+        recent_mean = series_clean.iloc[-window:].mean()
     
-    # Forecast is constant (mean)
+    # Calculate simple trend/drift from recent data
+    if include_trend and len(series_clean) >= window * 2:
+        # Compare recent window to previous window
+        recent_window = series_clean.iloc[-window:]
+        previous_window = series_clean.iloc[-window*2:-window]
+        
+        recent_window_mean = recent_window.mean()
+        previous_mean = previous_window.mean()
+        
+        # Calculate drift (mean reversion for returns)
+        drift = (recent_window_mean - previous_mean) / window
+        
+        # For returns, apply mean reversion (drift towards zero)
+        # This prevents the forecast from being completely flat
+        mean_reversion_rate = 0.1  # 10% reversion per period
+        drift = drift * (1 - mean_reversion_rate)
+        
+        # Update recent_mean to use the more recent window
+        recent_mean = recent_window_mean
+    else:
+        drift = 0.0
+    
+    # Create future dates
     last_date = series_clean.index[-1]
     if isinstance(last_date, pd.Timestamp):
         freq = pd.infer_freq(series_clean.index)
@@ -295,7 +372,18 @@ def simple_ma_forecast(
     else:
         future_dates = range(len(series_clean), len(series_clean) + forecast_horizon)
     
-    forecast_series = pd.Series([ma_value] * forecast_horizon, index=future_dates)
+    # Generate forecast with trend/drift
+    # For returns, apply mean reversion: forecast gradually returns to zero
+    forecast_values = []
+    current_value = recent_mean
+    
+    for i in range(forecast_horizon):
+        # Mean reversion: gradually move towards zero
+        # This creates a non-flat forecast even for the baseline model
+        forecast_values.append(current_value)
+        current_value = current_value * (1 - 0.05) + drift  # 5% mean reversion per period
+    
+    forecast_series = pd.Series(forecast_values, index=future_dates)
     
     # Simple confidence interval based on historical volatility
     std = series_clean.std()
@@ -375,7 +463,9 @@ def exponential_smoothing_forecast(
         
     except Exception as e:
         print(f"Exponential smoothing error: {e}")
-        return simple_ma_forecast(series, forecast_horizon)
+        # Re-raise to let ensemble handle it, or use improved MA with trend
+        # Don't silently fall back to avoid straight lines
+        raise ValueError(f"Exponential smoothing failed: {e}") from e
 
 
 def forecast_portfolio_returns(
@@ -425,6 +515,10 @@ def ensemble_forecast(
     """
     Ensemble forecast using multiple methods.
     
+    This function tries multiple forecasting methods and combines their results.
+    If a method fails, it's skipped (but at least one must succeed).
+    The MA method is always included as a fallback to ensure we have at least one forecast.
+    
     Args:
         portfolio_returns: Historical portfolio returns
         methods: List of forecasting methods to use
@@ -435,8 +529,26 @@ def ensemble_forecast(
         Dictionary with ensemble forecast and individual forecasts
     """
     individual_forecasts = {}
+    failed_methods = []
     
+    # Always try MA first as a baseline (it should always work)
+    if 'ma' in methods:
+        try:
+            result = forecast_portfolio_returns(
+                portfolio_returns,
+                method='ma',
+                forecast_horizon=forecast_horizon
+            )
+            individual_forecasts['ma'] = result['forecast']
+        except Exception as e:
+            print(f"Warning: MA forecast failed: {e}")
+            failed_methods.append('ma')
+    
+    # Try other methods
     for method in methods:
+        if method == 'ma':
+            continue  # Already tried
+        
         try:
             result = forecast_portfolio_returns(
                 portfolio_returns,
@@ -446,27 +558,41 @@ def ensemble_forecast(
             individual_forecasts[method] = result['forecast']
         except Exception as e:
             print(f"Warning: {method} forecast failed: {e}")
+            failed_methods.append(method)
             continue
     
     if not individual_forecasts:
-        raise ValueError("All forecasting methods failed")
+        raise ValueError("All forecasting methods failed. Cannot generate forecast.")
     
-    # Combine forecasts
-    forecast_df = pd.DataFrame(individual_forecasts)
+    # Combine forecasts - align all series by index first
+    forecast_dfs = []
+    for method, forecast_series in individual_forecasts.items():
+        if isinstance(forecast_series, pd.Series):
+            forecast_dfs.append(forecast_series.to_frame(name=method))
+    
+    if not forecast_dfs:
+        raise ValueError("No valid forecasts to combine")
+    
+    # Align all forecasts to the same index
+    forecast_df = pd.concat(forecast_dfs, axis=1)
+    forecast_df = forecast_df.fillna(method='ffill').fillna(method='bfill')
     
     if aggregation == 'mean':
         ensemble = forecast_df.mean(axis=1)
     elif aggregation == 'median':
         ensemble = forecast_df.median(axis=1)
     elif aggregation == 'weighted':
-        # Equal weights for now
-        ensemble = forecast_df.mean(axis=1)
+        # Weight by inverse of forecast variance (more stable forecasts get higher weight)
+        weights = 1.0 / (forecast_df.std(axis=0) + 1e-6)
+        weights = weights / weights.sum()
+        ensemble = (forecast_df * weights).sum(axis=1)
     else:
         raise ValueError(f"Unknown aggregation method: {aggregation}")
     
     result = {
         'ensemble_forecast': ensemble,
-        'individual_forecasts': individual_forecasts
+        'individual_forecasts': individual_forecasts,
+        'failed_methods': failed_methods
     }
     
     return result

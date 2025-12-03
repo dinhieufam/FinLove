@@ -547,14 +547,26 @@ if 'metrics' in st.session_state:
                 "Please enter a positive investment amount in the sidebar to see a dollar-based allocation plan."
             )
         else:
-            # Compute dollar allocation for each asset from the optimized weights.
-            dollar_allocation = weights * investment_amount
+            # Ensure weights are properly normalized (sum to 1.0)
+            # This handles edge cases where optimization might return slightly off-normalized weights
+            weights_normalized = weights / weights.sum() if weights.sum() != 0 else weights
+            
+            # Handle NaN or negative weights (set to 0)
+            weights_normalized = weights_normalized.fillna(0.0)
+            weights_normalized = weights_normalized.clip(lower=0.0)
+            
+            # Re-normalize after cleaning
+            if weights_normalized.sum() > 0:
+                weights_normalized = weights_normalized / weights_normalized.sum()
+            
+            # Compute dollar allocation for each asset from the normalized optimized weights
+            dollar_allocation = weights_normalized * investment_amount
             
             # Build a human-readable table summarizing the investment plan.
             allocation_df = pd.DataFrame(
                 {
-                    "Asset": weights.index,
-                    "Weight (%)": weights.values * 100,
+                    "Asset": weights_normalized.index,
+                    "Weight (%)": weights_normalized.values * 100,
                     "Allocation (USD)": dollar_allocation.values,
                 }
             ).sort_values("Allocation (USD)", ascending=False)
@@ -564,7 +576,7 @@ if 'metrics' in st.session_state:
             with col_a:
                 st.metric("Total Capital", f"${investment_amount:,.2f}")
             with col_b:
-                st.metric("Number of Assets", f"{len(weights.index)}")
+                st.metric("Number of Assets", f"{len(weights_normalized.index)}")
             with col_c:
                 st.metric(
                     "Optimization / Risk Engine",
@@ -830,39 +842,99 @@ if 'metrics' in st.session_state:
             ).sort_values("Ticker")
             st.dataframe(per_asset_df, use_container_width=True, hide_index=True)
         
-        st.markdown(f"#### Per-asset cumulative return charts (all {len(tickers)} companies)")
-        st.caption("Each chart below shows the historical cumulative return performance for one company. All companies are displayed side by side.")
-        # Arrange individual company charts in a grid so multiple tickers show next to each other.
+        st.markdown(f"#### Per-company analysis: Cumulative Returns, Rolling Sharpe, and Drawdown")
+        st.caption(f"Below are three key metrics for each of the {len(tickers)} companies displayed side by side: Cumulative Returns, Rolling Sharpe Ratio (252-day), and Drawdown.")
+        
+        # Arrange companies side by side - each company shows all 3 metrics vertically
         display_tickers = tickers  # Show all tickers
-        n_cols = min(3, max(1, len(display_tickers)))
-        for i in range(0, len(display_tickers), n_cols):
-            row_tickers = display_tickers[i : i + n_cols]
-            cols = st.columns(len(row_tickers))
+        n_cols_companies = min(3, max(1, len(display_tickers)))  # 3 companies per row
+        
+        for i in range(0, len(display_tickers), n_cols_companies):
+            row_tickers = display_tickers[i : i + n_cols_companies]
+            company_cols = st.columns(len(row_tickers))
+            
             for col_idx, ticker in enumerate(row_tickers):
-                with cols[col_idx]:
-                    st.markdown(f"**{ticker}**")
-                    # Use cumulative returns for a comparable performance view across assets.
+                with company_cols[col_idx]:
+                    st.markdown(f"##### {ticker}")
                     asset_ret = returns[ticker].dropna()
-                    if asset_ret.empty:
+                    
+                    if asset_ret.empty or len(asset_ret) < 2:
                         st.caption("No sufficient data to plot.")
                         continue
+                    
+                    # 1. Cumulative Returns
                     asset_cum = (1 + asset_ret).cumprod() * 100
-                    fig_asset = go.Figure()
-                    fig_asset.add_trace(
+                    fig_cum = go.Figure()
+                    fig_cum.add_trace(
                         go.Scatter(
                             x=asset_cum.index,
                             y=asset_cum.values,
                             mode="lines",
-                            name=f"{ticker} cumulative",
+                            name=f"{ticker} Cumulative",
+                            line=dict(color='#1f77b4', width=2)
                         )
                     )
-                    fig_asset.update_layout(
-                        margin=dict(l=10, r=10, t=30, b=20),
-                        height=240,
+                    fig_cum.update_layout(
+                        title="Cumulative Returns",
+                        margin=dict(l=10, r=10, t=40, b=20),
+                        height=220,
                         xaxis_title=None,
-                        yaxis_title="Cumulative Return (%)",
+                        yaxis_title="Return (%)",
+                        showlegend=False
                     )
-                    st.plotly_chart(fig_asset, use_container_width=True)
+                    st.plotly_chart(fig_cum, use_container_width=True)
+                    
+                    # 2. Rolling Sharpe Ratio
+                    asset_rolling_sharpe = rolling_sharpe(asset_ret, window=252)
+                    fig_sharpe = go.Figure()
+                    fig_sharpe.add_trace(
+                        go.Scatter(
+                            x=asset_rolling_sharpe.index,
+                            y=asset_rolling_sharpe.values,
+                            mode="lines",
+                            name=f"{ticker} Sharpe",
+                            line=dict(color='green', width=2)
+                        )
+                    )
+                    fig_sharpe.add_hline(y=0, line_dash="dash", line_color="gray", line_width=1)
+                    fig_sharpe.update_layout(
+                        title="Rolling Sharpe (252d)",
+                        margin=dict(l=10, r=10, t=40, b=20),
+                        height=220,
+                        xaxis_title=None,
+                        yaxis_title="Sharpe Ratio",
+                        showlegend=False
+                    )
+                    st.plotly_chart(fig_sharpe, use_container_width=True)
+                    
+                    # 3. Drawdown
+                    asset_cumulative = (1 + asset_ret).cumprod()
+                    asset_running_max = asset_cumulative.expanding().max()
+                    asset_drawdown = (asset_cumulative - asset_running_max) / asset_running_max * 100
+                    fig_dd = go.Figure()
+                    fig_dd.add_trace(
+                        go.Scatter(
+                            x=asset_drawdown.index,
+                            y=asset_drawdown.values,
+                            mode="lines",
+                            fill='tozeroy',
+                            name=f"{ticker} Drawdown",
+                            line=dict(color='#d62728', width=1.5),
+                            fillcolor='rgba(214,39,40,0.25)'
+                        )
+                    )
+                    fig_dd.update_layout(
+                        title="Drawdown",
+                        margin=dict(l=10, r=10, t=40, b=20),
+                        height=220,
+                        xaxis_title=None,
+                        yaxis_title="Drawdown (%)",
+                        showlegend=False
+                    )
+                    st.plotly_chart(fig_dd, use_container_width=True)
+            
+            # Add spacing between rows of companies
+            st.markdown("")
         
         # --- Risk model diagnostics using src/risk.py ---
         st.markdown("#### Risk engine view (covariance & correlation)")

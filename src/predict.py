@@ -164,9 +164,11 @@ def predict_future_performance(
         
         try:
             if forecast_method == 'ensemble':
+                # Use consistent ensemble methods: arima, exponential_smoothing, and ma
+                # This matches the dashboard implementation and avoids Prophet dependency issues
                 result = ensemble_forecast(
                     portfolio_returns,
-                    methods=['arima', 'prophet', 'ma'],
+                    methods=['arima', 'exponential_smoothing', 'ma'],
                     forecast_horizon=forecast_horizon
                 )
                 predictions[model_id] = result['ensemble_forecast']
