@@ -1,0 +1,29 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+body {
+  @apply bg-slate-950 text-slate-50 antialiased;
+}
+
+.finlove-gradient-bg {
+  background: radial-gradient(circle at top left, #0f172a, #020617 52%),
+    radial-gradient(circle at bottom right, #0f172a, #020617 60%);
+}
+
+.finlove-card {
+  @apply rounded-xl border border-slate-800/70 bg-slate-900/50 shadow-soft-elevated;
+}
+
+.finlove-pill {
+  @apply inline-flex items-center gap-1 rounded-full border border-emerald-400/40 bg-emerald-900/30 px-3 py-1 text-[11px] font-medium tracking-wide text-emerald-200;
+}
+
+.finlove-subtle {
+  @apply text-sm text-slate-300;
+}
+
