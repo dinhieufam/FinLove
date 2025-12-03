@@ -8,16 +8,22 @@ Implements walk-forward backtesting with:
 - Performance tracking
 """
 
+# Standard library imports
+import warnings
+from typing import Any, Dict, List, Optional, Tuple
+
+# Third-party imports
 import numpy as np
 import pandas as pd
-from typing import List, Optional, Dict, Tuple
-import warnings
-warnings.filterwarnings('ignore')
 
+# Local imports
 from .data import prepare_portfolio_data
-from .risk import get_covariance_matrix
+from .metrics import calculate_all_metrics, calculate_returns
 from .optimize import optimize_portfolio
-from .metrics import calculate_returns, calculate_all_metrics
+from .risk import get_covariance_matrix
+
+# Suppress warnings
+warnings.filterwarnings('ignore')
 
 
 def apply_transaction_costs(
@@ -27,14 +33,15 @@ def apply_transaction_costs(
 ) -> float:
     """
     Calculate transaction costs based on weight changes.
-    
+
     Args:
-        old_weights: Previous portfolio weights
-        new_weights: New portfolio weights
-        transaction_cost: Proportional transaction cost (e.g., 0.001 = 0.1%)
-    
+        old_weights: Previous portfolio weights.
+        new_weights: New portfolio weights.
+        transaction_cost: Proportional transaction cost (e.g., 0.001 = 0.1%).
+            Defaults to 0.001.
+
     Returns:
-        Total transaction cost
+        Total transaction cost as float.
     """
     # Align weights
     aligned_old = old_weights.reindex(new_weights.index, fill_value=0.0)
@@ -56,16 +63,16 @@ def should_rebalance(
 ) -> bool:
     """
     Determine if rebalancing is needed based on drift bands.
-    
+
     Rebalances if any weight drifts beyond the band.
-    
+
     Args:
-        current_weights: Current portfolio weights
-        target_weights: Target portfolio weights
-        rebalance_band: Maximum allowed drift (e.g., 0.05 = 5%)
-    
+        current_weights: Current portfolio weights.
+        target_weights: Target portfolio weights.
+        rebalance_band: Maximum allowed drift (e.g., 0.05 = 5%). Defaults to 0.05.
+
     Returns:
-        True if rebalancing is needed
+        True if rebalancing is needed, False otherwise.
     """
     # Align weights
     aligned_current = current_weights.reindex(target_weights.index, fill_value=0.0)
@@ -87,26 +94,29 @@ def walk_forward_backtest(
     transaction_cost: float = 0.001,
     rebalance_band: float = 0.05,
     rebalance_frequency: str = 'monthly',
-    constraints: Optional[Dict] = None,
-    **optimization_kwargs
-) -> Tuple[pd.Series, pd.DataFrame, Dict]:
+    constraints: Optional[Dict[str, Any]] = None,
+    **optimization_kwargs: Any
+) -> Tuple[pd.Series, pd.DataFrame, Dict[str, Any]]:
     """
     Walk-forward backtesting with rolling window.
-    
+
     Args:
-        returns: DataFrame with asset returns (daily)
-        train_window: Training window in months
-        test_window: Test window in months
-        optimization_method: 'markowitz', 'min_variance', 'sharpe', 'black_litterman', 'cvar'
-        risk_model: 'sample', 'ledoit_wolf', 'glasso', 'garch'
-        transaction_cost: Proportional transaction cost
-        rebalance_band: Rebalance band threshold
-        rebalance_frequency: 'monthly', 'weekly', 'daily'
-        constraints: Optimization constraints
-        **optimization_kwargs: Additional arguments for optimization
-    
+        returns: DataFrame with asset returns (daily).
+        train_window: Training window in months. Defaults to 36.
+        test_window: Test window in months. Defaults to 1.
+        optimization_method: Optimization method ('markowitz', 'min_variance', 'sharpe',
+            'black_litterman', 'cvar'). Defaults to 'markowitz'.
+        risk_model: Risk model ('sample', 'ledoit_wolf', 'glasso', 'garch').
+            Defaults to 'ledoit_wolf'.
+        transaction_cost: Proportional transaction cost. Defaults to 0.001.
+        rebalance_band: Rebalance band threshold. Defaults to 0.05.
+        rebalance_frequency: Rebalance frequency ('monthly', 'weekly', 'daily').
+            Defaults to 'monthly'.
+        constraints: Optimization constraints dictionary. Defaults to None.
+        **optimization_kwargs: Additional arguments for optimization.
+
     Returns:
-        Tuple of (portfolio_returns, weights_history, metrics_dict)
+        Tuple of (portfolio_returns, weights_history, metrics_dict).
     """
     # Convert returns to monthly for rebalancing
     if rebalance_frequency == 'monthly':
@@ -205,22 +215,22 @@ def simple_backtest(
     optimization_method: str = 'markowitz',
     risk_model: str = 'ledoit_wolf',
     transaction_cost: float = 0.0,
-    constraints: Optional[Dict] = None,
-    **optimization_kwargs
-) -> Tuple[pd.Series, pd.Series, Dict]:
+    constraints: Optional[Dict[str, Any]] = None,
+    **optimization_kwargs: Any
+) -> Tuple[pd.Series, pd.Series, Dict[str, Any]]:
     """
     Simple backtest: optimize once and hold.
-    
+
     Args:
-        returns: DataFrame with asset returns
-        optimization_method: Optimization method
-        risk_model: Risk model
-        transaction_cost: Transaction cost (not used in simple backtest)
-        constraints: Optimization constraints
-        **optimization_kwargs: Additional optimization arguments
-    
+        returns: DataFrame with asset returns.
+        optimization_method: Optimization method. Defaults to 'markowitz'.
+        risk_model: Risk model. Defaults to 'ledoit_wolf'.
+        transaction_cost: Transaction cost (not used in simple backtest). Defaults to 0.0.
+        constraints: Optimization constraints dictionary. Defaults to None.
+        **optimization_kwargs: Additional optimization arguments.
+
     Returns:
-        Tuple of (portfolio_returns, weights, metrics_dict)
+        Tuple of (portfolio_returns, weights, metrics_dict).
     """
     # Estimate covariance
     covariance = get_covariance_matrix(returns, method=risk_model)
