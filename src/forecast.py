@@ -19,32 +19,6 @@ import pandas as pd
 # Suppress warnings
 warnings.filterwarnings('ignore')
 
-try:
-    from statsmodels.tsa.arima.model import ARIMA
-    from statsmodels.tsa.statespace.sarimax import SARIMAX
-    from statsmodels.tsa.holtwinters import ExponentialSmoothing
-    STATSMODELS_AVAILABLE = True
-except ImportError:
-    STATSMODELS_AVAILABLE = False
-    print("Warning: statsmodels not available. ARIMA models will be disabled.")
-
-try:
-    from prophet import Prophet
-    PROPHET_AVAILABLE = True
-except ImportError:
-    PROPHET_AVAILABLE = False
-    print("Warning: Prophet not available. Install with: pip install prophet")
-
-try:
-    from sklearn.preprocessing import MinMaxScaler
-    from tensorflow import keras
-    from tensorflow.keras.models import Sequential
-    from tensorflow.keras.layers import LSTM, Dense, Dropout
-    TENSORFLOW_AVAILABLE = True
-except ImportError:
-    TENSORFLOW_AVAILABLE = False
-    print("Warning: TensorFlow/Keras not available. LSTM models will be disabled.")
-
 
 def arima_forecast(
     series: pd.Series,
@@ -55,6 +29,9 @@ def arima_forecast(
     """
     Forecast using ARIMA or SARIMA model.
     
+    This function performs a *lazy import* of ``statsmodels`` so that importing
+    this module stays lightweight until ARIMA is actually needed.
+    
     Args:
         series: Time series to forecast
         forecast_horizon: Number of periods ahead to forecast
@@ -64,8 +41,11 @@ def arima_forecast(
     Returns:
         Tuple of (forecast, confidence_intervals)
     """
-    if not STATSMODELS_AVAILABLE:
-        raise ImportError("statsmodels is required for ARIMA forecasting")
+    try:
+        from statsmodels.tsa.arima.model import ARIMA
+        from statsmodels.tsa.statespace.sarimax import SARIMAX
+    except ImportError as e:
+        raise ImportError("statsmodels is required for ARIMA forecasting") from e
     
     # Remove NaN values
     series_clean = series.dropna()
@@ -79,7 +59,8 @@ def arima_forecast(
         else:
             model = ARIMA(series_clean, order=order)
         
-        fitted = model.fit(disp=False)
+        # Newer versions of statsmodels removed the ``disp`` keyword; use the default instead.
+        fitted = model.fit()
         
         # Forecast
         forecast = fitted.forecast(steps=forecast_horizon)
@@ -120,6 +101,9 @@ def prophet_forecast(
     """
     Forecast using Facebook Prophet.
     
+    Prophet is **not** imported at module load time to keep imports fast. It is
+    lazily imported here the first time this function is called.
+    
     Args:
         series: Time series to forecast
         forecast_horizon: Number of periods ahead to forecast
@@ -130,8 +114,10 @@ def prophet_forecast(
     Returns:
         Tuple of (forecast, confidence_intervals)
     """
-    if not PROPHET_AVAILABLE:
-        raise ImportError("Prophet is required. Install with: pip install prophet")
+    try:
+        from prophet import Prophet  # type: ignore
+    except ImportError as e:
+        raise ImportError("Prophet is required. Install with: pip install prophet") from e
     
     # Prepare data for Prophet (requires 'ds' and 'y' columns)
     series_clean = series.dropna()
@@ -185,6 +171,9 @@ def lstm_forecast(
     """
     Forecast using LSTM neural network.
     
+    TensorFlow / Keras and the scaler are lazily imported inside this function
+    to avoid heavy imports when LSTM is not used.
+    
     Args:
         series: Time series to forecast
         forecast_horizon: Number of periods ahead to forecast
@@ -196,8 +185,12 @@ def lstm_forecast(
     Returns:
         Tuple of (forecast, None) - confidence intervals not available for LSTM
     """
-    if not TENSORFLOW_AVAILABLE:
-        raise ImportError("TensorFlow/Keras is required for LSTM forecasting")
+    try:
+        from sklearn.preprocessing import MinMaxScaler  # type: ignore
+        from tensorflow.keras.models import Sequential  # type: ignore
+        from tensorflow.keras.layers import LSTM, Dense, Dropout  # type: ignore
+    except ImportError as e:
+        raise ImportError("TensorFlow/Keras and scikit-learn are required for LSTM forecasting") from e
     
     series_clean = series.dropna().values.reshape(-1, 1)
     
@@ -334,8 +327,10 @@ def exponential_smoothing_forecast(
     Returns:
         Tuple of (forecast, confidence_intervals)
     """
-    if not STATSMODELS_AVAILABLE:
-        raise ImportError("statsmodels is required for exponential smoothing")
+    try:
+        from statsmodels.tsa.holtwinters import ExponentialSmoothing
+    except ImportError as e:
+        raise ImportError("statsmodels is required for exponential smoothing") from e
     
     series_clean = series.dropna()
     
