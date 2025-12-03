@@ -7,24 +7,29 @@ Implements various optimization objectives:
 - CVaR (Conditional Value at Risk)
 """
 
+# Standard library imports
+import warnings
+from typing import Any, Dict, List, Optional, Tuple
+
+# Third-party imports
+import cvxpy as cp
 import numpy as np
 import pandas as pd
-import cvxpy as cp
-from typing import Optional, Dict, List, Tuple
-import warnings
+
+# Suppress warnings
 warnings.filterwarnings('ignore')
 
 
-def get_available_solver(require_conic: bool = False):
+def get_available_solver(require_conic: bool = False) -> Optional[str]:
     """
     Get the best available solver for portfolio optimization.
-    
+
     Args:
-        require_conic: Set to True when the problem includes SOC / conic constraints
-                       and therefore needs a conic-capable solver.
-    
+        require_conic: Set to True when the problem includes SOC/conic constraints
+            and therefore needs a conic-capable solver. Defaults to False.
+
     Returns:
-        Solver name string
+        Solver name string or None if no solver available.
     """
     # Try solvers in order of preference. Some problems (e.g., Sharpe ratio)
     # require SOC/conic support, so we optionally prioritize conic solvers.
@@ -50,22 +55,24 @@ def markowitz_optimization(
     expected_returns: pd.Series,
     covariance: pd.DataFrame,
     risk_aversion: float = 1.0,
-    constraints: Optional[Dict] = None
+    constraints: Optional[Dict[str, Any]] = None
 ) -> pd.Series:
     """
     Markowitz mean-variance optimization.
-    
+
     Maximizes: μ'w - (λ/2) * w'Σw
     where μ is expected returns, Σ is covariance, λ is risk aversion.
-    
+
     Args:
-        expected_returns: Expected returns for each asset
-        covariance: Covariance matrix
-        risk_aversion: Risk aversion parameter (higher = more risk averse)
-        constraints: Dictionary with constraints (e.g., {'long_only': True, 'max_weight': 0.4})
-    
+        expected_returns: Expected returns for each asset.
+        covariance: Covariance matrix.
+        risk_aversion: Risk aversion parameter (higher = more risk averse).
+            Defaults to 1.0.
+        constraints: Dictionary with constraints (e.g., {'long_only': True,
+            'max_weight': 0.4}). Defaults to None.
+
     Returns:
-        Optimal weights as Series
+        Optimal weights as Series.
     """
     n = len(expected_returns)
     w = cp.Variable(n)
@@ -109,20 +116,19 @@ def markowitz_optimization(
 
 def minimum_variance_optimization(
     covariance: pd.DataFrame,
-    constraints: Optional[Dict] = None
+    constraints: Optional[Dict[str, Any]] = None
 ) -> pd.Series:
     """
     Minimum variance portfolio optimization.
-    
-    Minimizes: w'Σw
-    subject to constraints.
-    
+
+    Minimizes: w'Σw subject to constraints.
+
     Args:
-        covariance: Covariance matrix
-        constraints: Dictionary with constraints
-    
+        covariance: Covariance matrix.
+        constraints: Dictionary with constraints. Defaults to None.
+
     Returns:
-        Optimal weights as Series
+        Optimal weights as Series.
     """
     n = len(covariance)
     w = cp.Variable(n)
@@ -160,21 +166,21 @@ def sharpe_maximization(
     expected_returns: pd.Series,
     covariance: pd.DataFrame,
     risk_free_rate: float = 0.0,
-    constraints: Optional[Dict] = None
+    constraints: Optional[Dict[str, Any]] = None
 ) -> pd.Series:
     """
     Maximize Sharpe ratio portfolio.
-    
+
     Maximizes: (μ'w - rf) / sqrt(w'Σw)
-    
+
     Args:
-        expected_returns: Expected returns
-        covariance: Covariance matrix
-        risk_free_rate: Risk-free rate (annualized)
-        constraints: Constraints dictionary
-    
+        expected_returns: Expected returns.
+        covariance: Covariance matrix.
+        risk_free_rate: Risk-free rate (annualized). Defaults to 0.0.
+        constraints: Constraints dictionary. Defaults to None.
+
     Returns:
-        Optimal weights
+        Optimal weights as Series.
     """
     # Convert to daily risk-free rate if needed
     rf_daily = risk_free_rate / 252
@@ -292,20 +298,21 @@ def black_litterman_returns(
 def cvar_optimization(
     returns: pd.DataFrame,
     confidence_level: float = 0.05,
-    constraints: Optional[Dict] = None
+    constraints: Optional[Dict[str, Any]] = None
 ) -> pd.Series:
     """
     CVaR (Conditional Value at Risk) optimization.
-    
+
     Minimizes CVaR, which is the expected loss given that loss exceeds VaR.
-    
+
     Args:
-        returns: Historical returns (scenarios as rows, assets as columns)
-        confidence_level: Confidence level (e.g., 0.05 for 95% CVaR)
-        constraints: Constraints dictionary
-    
+        returns: Historical returns (scenarios as rows, assets as columns).
+        confidence_level: Confidence level (e.g., 0.05 for 95% CVaR).
+            Defaults to 0.05.
+        constraints: Constraints dictionary. Defaults to None.
+
     Returns:
-        Optimal weights
+        Optimal weights as Series.
     """
     n_scenarios, n_assets = returns.shape
     w = cp.Variable(n_assets)
@@ -356,19 +363,20 @@ def optimize_portfolio(
     returns: pd.DataFrame,
     covariance: pd.DataFrame,
     method: str = 'markowitz',
-    **kwargs
+    **kwargs: Any
 ) -> pd.Series:
     """
     Main portfolio optimization function.
-    
+
     Args:
-        returns: Historical returns
-        covariance: Covariance matrix
-        method: 'markowitz', 'min_variance', 'sharpe', 'black_litterman', 'cvar'
-        **kwargs: Additional arguments for specific methods
-    
+        returns: Historical returns.
+        covariance: Covariance matrix.
+        method: Optimization method ('markowitz', 'min_variance', 'sharpe',
+            'black_litterman', 'cvar'). Defaults to 'markowitz'.
+        **kwargs: Additional arguments for specific methods.
+
     Returns:
-        Optimal weights
+        Optimal weights as Series.
     """
     if method == 'markowitz':
         expected_returns = returns.mean() * 252  # Annualized
