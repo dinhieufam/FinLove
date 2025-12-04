@@ -89,17 +89,75 @@ dmypy.json
 data_cache/
 web/backend/__pycache__/
 src/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Next.js build output and cache
+web/frontend/.next/
+web/frontend/out/
+web/frontend/.nextjs/
+web/frontend/.swc/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Python virtual environments (common names)
+venv/
+env/
+.venv/
+ENV/
+env.bak/
+hieu/
+chun/
+*.venv
+
+# Old/duplicate directories (if they exist)
+backend/
+frontend/
 
 # MacOS
 .DS_Store
+.AppleDouble
+.LSOverride
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
 
 # VSCode settings
 .vscode/
+.vscode-test/
 
 # External tool config
 .idea/
+*.swp
+*.swo
+*~
 
 # Ignore secrets/local config
 secrets.env
 config.local.yaml
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Logs
+logs/
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
 
