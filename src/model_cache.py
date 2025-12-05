@@ -22,7 +22,7 @@ import pandas as pd
 warnings.filterwarnings('ignore')
 
 # Module-level constants
-MODELS_CACHE_DIR = os.path.join(os.path.dirname(__file__), '..', 'models_cache')
+MODELS_CACHE_DIR = os.path.join(os.path.dirname(__file__), '..', 'models')
 
 # Create models cache directory if it doesn't exist
 os.makedirs(MODELS_CACHE_DIR, exist_ok=True)
