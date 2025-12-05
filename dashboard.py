@@ -16,10 +16,7 @@ import plotly.express as px
 from datetime import datetime, timedelta
 import sys
 import os
-<<<<<<< HEAD
 import math
-=======
->>>>>>> origin/trumai
 
 # Add project root to path
 project_root = os.path.dirname(os.path.abspath(__file__))
@@ -27,7 +24,6 @@ sys.path.insert(0, project_root)
 
 # Import modules
 from src.data import (
-<<<<<<< HEAD
     download_data,
     get_returns,
     get_company_info,
@@ -35,17 +31,11 @@ from src.data import (
     compute_features,
     get_cache_info,
     clear_cache,
-=======
-    download_data, get_returns, get_company_info,
-    prepare_portfolio_data, compute_features,
-    get_cache_info, clear_cache
->>>>>>> origin/trumai
 )
 from src.risk import get_covariance_matrix
 from src.optimize import optimize_portfolio
 from src.backtest import walk_forward_backtest, simple_backtest
 from src.metrics import (
-<<<<<<< HEAD
     calculate_all_metrics,
     rolling_sharpe,
     rolling_volatility,
@@ -56,10 +46,6 @@ from src.metrics import (
 from src.forecast import (
     forecast_portfolio_returns,
     ensemble_forecast,
-=======
-    calculate_all_metrics, rolling_sharpe, rolling_volatility,
-    maximum_drawdown, value_at_risk, conditional_value_at_risk
->>>>>>> origin/trumai
 )
 
 # Quick-reference list of popular tickers that many users ask for.
@@ -365,7 +351,6 @@ risk_label_selection = st.sidebar.selectbox(
 )
 risk_model = dict(RISK_MODEL_OPTIONS)[risk_label_selection]
 
-<<<<<<< HEAD
 # Capital amount – used in the Investment tab to convert optimal weights into dollar allocations.
 st.sidebar.subheader("5. Investment Capital")
 investment_amount = st.sidebar.number_input(
@@ -381,10 +366,6 @@ investment_amount = st.sidebar.number_input(
 
 # Additional parameters related to risk and preferences.
 st.sidebar.subheader("6. Risk Appetite")
-=======
-# Additional parameters
-st.sidebar.subheader("5. Risk Appetite")
->>>>>>> origin/trumai
 risk_aversion = st.sidebar.slider(
     "Dial down risk-taking",
     min_value=0.1,
@@ -395,22 +376,14 @@ risk_aversion = st.sidebar.slider(
 )
 
 # Backtest type
-<<<<<<< HEAD
 st.sidebar.subheader("7. Testing Style")
-=======
-st.sidebar.subheader("6. Testing Style")
->>>>>>> origin/trumai
 backtest_type = st.sidebar.radio(
     "Choose how to test the portfolio",
     ["Simple (One-time optimization)", "Walk-Forward (Rolling window)"]
 )
 
 # AI explanations
-<<<<<<< HEAD
 st.sidebar.subheader("8. AI Explanations")
-=======
-st.sidebar.subheader("7. AI Explanations")
->>>>>>> origin/trumai
 enable_ai_insights = st.sidebar.checkbox(
     "Turn on AI chart explanations",
     value=st.session_state.get("enable_ai_insights", False),
@@ -554,7 +527,6 @@ if 'metrics' in st.session_state:
     
     st.success(f"✅ Analysis complete for {len(tickers)} assets: {', '.join(tickers)}")
     
-<<<<<<< HEAD
     # Three main tabs matching the requested workflow:
     # 1) Investment Plan – turn optimized weights into a dollar investment plan.
     # 2) Analyze – in-depth risk and performance analysis using risk models from src/risk.py.
@@ -641,10 +613,6 @@ if 'metrics' in st.session_state:
     # ----------------------------------------------------------------------
     # 🔍 Analyze tab: performance, allocations, and risk model diagnostics.
     # ----------------------------------------------------------------------
-=======
-    analyze_tab, info_tab, predict_tab = st.tabs(["🔍 Analyze", "ℹ️ Information", "🔮 Prediction"])
-    
->>>>>>> origin/trumai
     with analyze_tab:
         st.subheader("Key takeaways")
         metric_cols = st.columns(4)
@@ -845,7 +813,6 @@ if 'metrics' in st.session_state:
             ], ignore_index=True)
         metrics_df.columns = ["Metric", "Value"]
         st.dataframe(metrics_df, use_container_width=True, hide_index=True)
-<<<<<<< HEAD
         
         # --- Per-asset analysis: analyze each input company side by side ---
         st.markdown(f"#### Per-asset performance snapshots (analyzing all {len(tickers)} companies)")
@@ -1018,15 +985,10 @@ if 'metrics' in st.session_state:
         
         # --- Model map and configuration summary (moved from the old Information tab) ---
         st.markdown("---")
-=======
-    
-    with info_tab:
->>>>>>> origin/trumai
         st.subheader("Model map")
         st.dataframe(MODEL_REFERENCE_DF, use_container_width=True, hide_index=True)
         
         st.subheader("Configuration summary")
-<<<<<<< HEAD
         config_df = pd.DataFrame(
             [
                 ["Portfolio Objective", opt_label_selection],
@@ -1037,16 +999,6 @@ if 'metrics' in st.session_state:
                 ["Backtest Type", backtest_type],
             ]
         )
-=======
-        config_df = pd.DataFrame([
-            ["Portfolio Objective", opt_label_selection],
-            ["Risk Engine", risk_label_selection],
-            ["Risk Appetite Dial", f"{risk_aversion:.2f}"],
-            ["Transaction Cost", f"{transaction_cost*100:.2f}%"],
-            ["Rebalance Band", f"{rebalance_band*100:.2f}%"],
-            ["Backtest Type", backtest_type],
-        ])
->>>>>>> origin/trumai
         config_df.columns = ["Parameter", "Value"]
         st.dataframe(config_df, use_container_width=True, hide_index=True)
         
@@ -1075,7 +1027,6 @@ if 'metrics' in st.session_state:
             except Exception as e:
                 st.warning(f"Could not fetch info for {ticker}: {str(e)}")
     
-<<<<<<< HEAD
     # ----------------------------------------------------------------------
     # 🔮 Prediction tab: time-series based forward-looking portfolio view.
     # Uses 4 models: LSTM, TCN, XGBoost, Transformer for all companies.
@@ -1531,90 +1482,6 @@ if 'metrics' in st.session_state:
             pivot_vol = summary_df.pivot(index='Company', columns='Model', values='Forecast Volatility (%)')
             st.markdown("#### Forecast Volatility Comparison (%)")
             st.dataframe(pivot_vol, use_container_width=True)
-=======
-    with predict_tab:
-        st.subheader("Forward-looking diagnostics")
-        st.info("These diagnostics translate the chosen risk engine into volatility and tail-risk insights. Use them to understand how today’s configuration might behave tomorrow.")
-        
-        rolling_vol = rolling_volatility(portfolio_returns, window=252)
-        vol_fig = go.Figure()
-        vol_fig.add_trace(go.Scatter(
-            x=rolling_vol.index,
-            y=rolling_vol.values * 100,
-            mode='lines',
-            name='Rolling Volatility (252 days)',
-            line=dict(color='#6a1b9a', width=2)
-        ))
-        vol_fig.update_layout(
-            title="Volatility Outlook",
-            xaxis_title="Date",
-            yaxis_title="Volatility (%)",
-            height=320
-        )
-        vol_cols = st.columns([3, 1.2])
-        with vol_cols[0]:
-            st.plotly_chart(vol_fig, use_container_width=True)
-        latest_vol = rolling_vol.dropna().iloc[-1] if not rolling_vol.dropna().empty else 0.0
-        mean_vol = rolling_vol.mean()
-        vol_default = (
-            f"Recent volatility sits near {format_pct(latest_vol, 2)} vs a {format_pct(mean_vol, 2)} average. "
-            "Lean in if you can stomach swings at this level; stay cautious if you need smoother rides."
-        )
-        vol_stats = (
-            f"Latest rolling volatility {latest_vol:.4f}; mean {mean_vol:.4f}; "
-            f"window length {rolling_vol.count()}."
-        )
-        with vol_cols[1]:
-            render_insight_box("Volatility Outlook", vol_stats, vol_default)
-        
-        hist_fig = go.Figure()
-        hist_fig.add_trace(go.Histogram(
-            x=portfolio_returns.values * 100,
-            nbinsx=50,
-            name='Portfolio Returns',
-            marker_color='#1f77b4'
-        ))
-        hist_fig.add_vline(
-            x=metrics['var_95'] * 100,
-            line_dash="dash",
-            line_color="#d62728",
-            annotation_text="VaR (95%)"
-        )
-        hist_fig.update_layout(
-            title="Distribution Of Returns",
-            xaxis_title="Daily Return (%)",
-            yaxis_title="Frequency",
-            height=320
-        )
-        dist_cols = st.columns([3, 1.2])
-        with dist_cols[0]:
-            st.plotly_chart(hist_fig, use_container_width=True)
-        returns_np = portfolio_returns.dropna()
-        skew_val = returns_np.skew()
-        kurt_val = returns_np.kurt()
-        var_val = metrics.get("var_95", 0)
-        cvar_val = metrics.get("cvar_95", 0)
-        dist_default = (
-            f"Typical daily move is ~{format_pct(returns_np.std(), 2)}; "
-            f"VaR 95 is {format_pct(var_val, 2)}, CVaR 95 is {format_pct(cvar_val, 2)}. "
-            "Lean in if these tail-loss levels fit your risk budget; stay cautious if the downside feels steep."
-        )
-        dist_stats = (
-            f"Stdev {returns_np.std():.4f}; skew {skew_val:.3f}; kurtosis {kurt_val:.3f}; "
-            f"VaR {var_val:.4f}; CVaR {cvar_val:.4f}."
-        )
-        with dist_cols[1]:
-            render_insight_box("Return Distribution", dist_stats, dist_default)
-        
-        if risk_model == "garch":
-            st.success("Because you selected a volatility-forecasting engine, emphasis is placed on recent volatility spikes and decay.")
-        elif risk_model == "glasso":
-            st.success("Sparse dependency modeling highlights clusters of assets that move together—great for stress testing correlation breakdowns.")
-        elif risk_model == "ledoit_wolf":
-            st.success("Shrinkage keeps the covariance matrix stable, so the predicted volatility path is smoother than raw history.")
-        else:
-            st.success("Sample covariance reflects pure historical co-movement. Combine with walk-forward testing to validate robustness.")
->>>>>>> origin/trumai
 
 else:
     # Initial state - show instructions
