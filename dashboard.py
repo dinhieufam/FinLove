@@ -1029,329 +1029,459 @@ if 'metrics' in st.session_state:
     
     # ----------------------------------------------------------------------
     # 🔮 Prediction tab: time-series based forward-looking portfolio view.
+    # Uses 4 models: LSTM, TCN, XGBoost, Transformer for all companies.
     # ----------------------------------------------------------------------
     with predict_tab:
-        st.subheader("Forecasted portfolio behavior")
-        
-        # Model selection: provide multiple forecasting engines with clear labels.
-        forecast_method_label = st.selectbox(
-            "Forecasting model",
-            [
-                "Ensemble (ARIMA + Exponential Smoothing + Moving Average)",
-                "ARIMA (Auto-Regressive Integrated Moving Average)",
-                "Exponential Smoothing (Holt-Winters)",
-                "Moving Average (Baseline)",
-            ],
-            help=(
-                "Different models capture different patterns: ARIMA models trends and autocorrelations, "
-                "Exponential Smoothing adapts to recent changes, Ensemble combines multiple models for robustness. "
-                "If advanced models fail, the app will fall back to Moving Average."
-            ),
+        st.subheader("🔮 Multi-Model Predictions for All Companies")
+        st.caption(
+            f"This tab provides predictions for all {len(tickers)} companies using 4 advanced models: "
+            "LSTM, Temporal Convolutional Networks (TCN), XGBoost, and Time Series Transformer. "
+            "Each company shows cumulative returns, volatility outlook, and return distribution."
         )
-        method_map = {
-            "Ensemble (ARIMA + Exponential Smoothing + Moving Average)": "ensemble",
-            "ARIMA (Auto-Regressive Integrated Moving Average)": "arima",
-            "Exponential Smoothing (Holt-Winters)": "exponential_smoothing",
-            "Moving Average (Baseline)": "ma",
-        }
-        internal_forecast_method = method_map[forecast_method_label]
         
+        # Forecast horizon configuration
         forecast_horizon = st.slider(
             "Forecast horizon (days)",
             min_value=5,
             max_value=90,
             value=30,
             step=5,
-            help="Number of future trading days to project based on the chosen forecasting model.",
+            help="Number of future trading days to project using all 4 models.",
         )
         
-        # Run the forecasting step using the historical portfolio returns produced by the backtest.
-        forecast_series = None
-        forecast_model_used = internal_forecast_method
-        fallback_used = False
-        try:
-            if internal_forecast_method == "ensemble":
-                # Use an ensemble of ARIMA, exponential smoothing, and moving average.
-                ensemble_result = ensemble_forecast(
-                    portfolio_returns,
-                    methods=["arima", "exponential_smoothing", "ma"],
-                    forecast_horizon=forecast_horizon,
-                )
-                forecast_series = ensemble_result["ensemble_forecast"]
-                forecast_model_used = "ensemble (ARIMA + Exponential Smoothing + MA)"
-            else:
-                # Use a single forecasting method (ARIMA, exponential smoothing, or moving average).
-                result = forecast_portfolio_returns(
-                    portfolio_returns,
-                    method=internal_forecast_method,
-                    forecast_horizon=forecast_horizon,
-                )
-                forecast_series = result["forecast"]
-        except Exception as e:
-            # If advanced models fail (e.g., statsmodels not installed), fall back to a simple MA forecast.
-            st.warning(
-                f"Primary forecasting method '{forecast_method_label}' failed ({str(e)}). "
-                "Falling back to Moving Average baseline."
+        # Model configuration
+        with st.expander("⚙️ Model Configuration", expanded=False):
+            st.write("**Available Models:**")
+            st.write("- **LSTM**: Long Short-Term Memory neural network for sequential patterns")
+            st.write("- **TCN**: Temporal Convolutional Network with dilated convolutions")
+            st.write("- **XGBoost**: Gradient boosting with lagged features")
+            st.write("- **Transformer**: Multi-head attention for time series")
+            
+            st.info(
+                "💡 **Pre-trained Models:** Models will automatically use cached pre-trained weights "
+                "from `models_cache/` if parameters match. Defaults (epochs=50, lookback=60) match "
+                "`train_all_models.py` for optimal cache usage. Change parameters only if you want to retrain."
             )
-            try:
-                result = forecast_portfolio_returns(
-                    portfolio_returns,
-                    method="ma",
-                    forecast_horizon=forecast_horizon,
-                )
-                forecast_series = result["forecast"]
-                forecast_model_used = "moving average (fallback)"
-                fallback_used = True
-            except Exception as e2:
-                st.error(f"Forecasting failed even with fallback method: {e2}")
+            
+            # Training parameters
+            # Note: Defaults match train_all_models.py to use pre-trained cached models
+            epochs = st.slider("Training epochs (for neural networks)", 10, 100, 50, 5)
+            lookback_window = st.slider("Lookback window (days)", 30, 120, 60, 10)
         
-        if forecast_series is not None:
-            # Build a cumulative performance view combining recent history and the projected path.
-            history_window = min(len(portfolio_returns), 252)
-            recent_hist = portfolio_returns.iloc[-history_window:]
-            cumulative_hist = (1 + recent_hist).cumprod()
+        # Define the 4 models to use
+        models_to_use = ['lstm', 'tcn', 'xgboost', 'transformer']
+        model_names = {
+            'lstm': 'LSTM',
+            'tcn': 'Temporal Convolutional Network',
+            'xgboost': 'XGBoost',
+            'transformer': 'Time Series Transformer'
+        }
+        
+        # Button to generate predictions
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col2:
+            generate_predictions = st.button(
+                "🚀 Generate Predictions for All Companies",
+                type="primary",
+                use_container_width=True,
+                help="Click to generate predictions using all 4 models for all companies. This may take a few minutes."
+            )
+        
+        # Store predictions in session state
+        cache_key = f"predictions_{forecast_horizon}_{epochs}_{lookback_window}_{'_'.join(sorted(tickers))}"
+        
+        # Check if we should use cached predictions or generate new ones
+        if generate_predictions or cache_key not in st.session_state.get('predictions_cache', {}):
+            # Progress tracking
+            progress_bar = st.progress(0)
+            status_text = st.empty()
             
-            cumulative_forecast = (1 + forecast_series).cumprod()
-            # Start forecast from the last historical cumulative value to ensure continuity.
-            cumulative_forecast = cumulative_forecast * cumulative_hist.iloc[-1]
+            # Info about using cached models
+            st.info(
+                f"💡 **Tip:** Models will use pre-trained weights from `models_cache` if available "
+                f"(matching epochs={epochs}, lookback={lookback_window}). "
+                f"This makes inference much faster! Run `python train_all_models.py` to pre-train all models."
+            )
             
-            forecast_fig = go.Figure()
-            forecast_fig.add_trace(
+            # Generate predictions for all companies using all 4 models
+            all_predictions = {}
+            total_tasks = len(tickers) * len(models_to_use)
+            completed_tasks = 0
+            cache_hits = 0
+            cache_misses = 0
+            
+            for ticker_idx, ticker in enumerate(tickers):
+                asset_series = returns[ticker].dropna()
+                
+                if len(asset_series) < lookback_window + 10:
+                    st.warning(f"⚠️ {ticker}: Insufficient data (need at least {lookback_window + 10} days, have {len(asset_series)})")
+                    continue
+                
+                all_predictions[ticker] = {}
+                
+                for model_name in models_to_use:
+                    try:
+                        # Check if model is cached before calling forecast
+                        from src.model_cache import get_model_cache_key, load_model_from_cache
+                        
+                        # Build cache key to check if model exists
+                        if model_name == 'lstm':
+                            check_cache_key = get_model_cache_key(
+                                ticker=ticker,
+                                model_type='lstm',
+                                lookback_window=lookback_window,
+                                epochs=epochs,
+                                lstm_units=50
+                            )
+                        elif model_name == 'tcn':
+                            check_cache_key = get_model_cache_key(
+                                ticker=ticker,
+                                model_type='tcn',
+                                lookback_window=lookback_window,
+                                epochs=epochs,
+                                num_filters=64,
+                                kernel_size=3,
+                                num_blocks=2
+                            )
+                        elif model_name == 'xgboost':
+                            check_cache_key = get_model_cache_key(
+                                ticker=ticker,
+                                model_type='xgboost',
+                                lookback_window=lookback_window,
+                                n_estimators=100,
+                                max_depth=6,
+                                learning_rate=0.1
+                            )
+                        elif model_name == 'transformer':
+                            check_cache_key = get_model_cache_key(
+                                ticker=ticker,
+                                model_type='transformer',
+                                lookback_window=lookback_window,
+                                epochs=epochs,
+                                d_model=64,
+                                num_heads=4,
+                                num_layers=2
+                            )
+                        else:
+                            check_cache_key = None
+                        
+                        # Check cache status
+                        is_cached = False
+                        if check_cache_key:
+                            cached_check = load_model_from_cache(check_cache_key, max_age_days=365)
+                            is_cached = cached_check is not None
+                        
+                        if is_cached:
+                            status_text.text(f"⚡ Loading cached {model_names[model_name]} for {ticker}...")
+                            cache_hits += 1
+                        else:
+                            status_text.text(f"🔄 Training {model_names[model_name]} for {ticker} (not in cache)...")
+                            cache_misses += 1
+                        
+                        # Generate forecast using the specific model
+                        result = forecast_portfolio_returns(
+                            asset_series,
+                            method=model_name,
+                            forecast_horizon=forecast_horizon,
+                            lookback_window=lookback_window,
+                            epochs=epochs,
+                            use_cache=True,  # Always use cache - will load if available, train and save if not
+                            ticker=ticker
+                        )
+                        
+                        all_predictions[ticker][model_name] = result['forecast']
+                        completed_tasks += 1
+                        progress_bar.progress(completed_tasks / total_tasks)
+                        
+                    except Exception as e:
+                        st.warning(f"⚠️ {ticker} - {model_names[model_name]} failed: {str(e)[:100]}")
+                        # Continue with other models even if one fails
+                        continue
+            
+            # Show cache statistics
+            if cache_hits > 0 or cache_misses > 0:
+                st.success(
+                    f"✅ Completed: {cache_hits} models loaded from cache (fast), "
+                    f"{cache_misses} models trained (slower). "
+                    f"Run `python train_all_models.py` to pre-train all models for faster inference!"
+                )
+            
+            progress_bar.empty()
+            status_text.empty()
+            
+            # Cache the predictions
+            if 'predictions_cache' not in st.session_state:
+                st.session_state['predictions_cache'] = {}
+            st.session_state['predictions_cache'][cache_key] = all_predictions
+            
+            if not all_predictions:
+                st.error("❌ No predictions generated. Please check data availability and model dependencies.")
+                st.stop()
+        else:
+            # Use cached predictions
+            all_predictions = st.session_state['predictions_cache'][cache_key]
+            st.success(f"✅ Using cached predictions for {len(all_predictions)} companies")
+        
+        # Display predictions for each company
+        st.markdown("---")
+        st.subheader(f"📊 Predictions for All {len(all_predictions)} Companies")
+        
+        # Process each company
+        for ticker_idx, ticker in enumerate(all_predictions.keys()):
+            ticker_predictions = all_predictions[ticker]
+            asset_series = returns[ticker].dropna()
+            
+            if not ticker_predictions:
+                continue
+            
+            st.markdown(f"### {ticker}")
+            
+            # Prepare historical data
+            hist_window = min(len(asset_series), 252)
+            recent_asset = asset_series.iloc[-hist_window:]
+            cum_hist_asset = (1 + recent_asset).cumprod()
+            
+            # ==================================================================
+            # 1. Cumulative Returns Chart (all 4 models)
+            # ==================================================================
+            st.markdown("#### 📈 Future Cumulative Returns (All Models)")
+            
+            cum_returns_fig = go.Figure()
+            
+            # Add historical line
+            cum_returns_fig.add_trace(
                 go.Scatter(
-                    x=cumulative_hist.index,
-                    y=cumulative_hist.values * 100,
+                    x=cum_hist_asset.index,
+                    y=cum_hist_asset.values * 100,
                     mode="lines",
-                    name="Historical (recent)",
+                    name="Historical",
                     line=dict(color="#1f77b4", width=2),
                 )
             )
-            forecast_fig.add_trace(
-                go.Scatter(
-                    x=cumulative_forecast.index,
-                    y=cumulative_forecast.values * 100,
-                    mode="lines",
-                    name=f"Forecast (next {forecast_horizon} days)",
-                    line=dict(color="#d62728", width=2, dash="dash"),
-                )
-            )
-            forecast_fig.update_layout(
-                title="Portfolio cumulative return: history vs forecast",
+            
+            # Add forecast lines for each model
+            colors = {
+                'lstm': '#d62728',
+                'tcn': '#2ca02c',
+                'xgboost': '#ff7f0e',
+                'transformer': '#9467bd'
+            }
+            
+            for model_name, forecast_series in ticker_predictions.items():
+                if forecast_series is not None and len(forecast_series) > 0:
+                    cum_forecast = (1 + forecast_series).cumprod()
+                    # Start forecast from the last historical cumulative value
+                    cum_forecast = cum_forecast * cum_hist_asset.iloc[-1]
+                    
+                    cum_returns_fig.add_trace(
+                        go.Scatter(
+                            x=cum_forecast.index,
+                            y=cum_forecast.values * 100,
+                            mode="lines",
+                            name=model_names[model_name],
+                            line=dict(color=colors.get(model_name, '#000000'), width=2, dash="dash"),
+                        )
+                    )
+            
+            cum_returns_fig.update_layout(
+                title=f"{ticker} - Cumulative Returns Forecast",
                 xaxis_title="Date",
                 yaxis_title="Cumulative Return (%)",
                 hovermode="x unified",
-                height=420,
+                height=400,
+                legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
+            )
+            st.plotly_chart(cum_returns_fig, use_container_width=True)
+            
+            # Summary statistics for cumulative returns
+            summary_cols = st.columns(4)
+            for col_idx, (model_name, forecast_series) in enumerate(ticker_predictions.items()):
+                if forecast_series is not None and len(forecast_series) > 0:
+                    cum_ret = (1 + forecast_series).prod() - 1
+                    with summary_cols[col_idx]:
+                        st.metric(
+                            model_names[model_name],
+                            f"{cum_ret*100:.2f}%",
+                            help=f"{forecast_horizon}-day cumulative return forecast"
+                        )
+            
+            # ==================================================================
+            # 2. Volatility Outlook Chart
+            # ==================================================================
+            st.markdown("#### 📊 Volatility Outlook")
+            
+            # Calculate historical rolling volatility
+            rolling_vol_asset = rolling_volatility(asset_series, window=252)
+            
+            # Calculate forecasted volatility for each model
+            vol_fig = go.Figure()
+            
+            # Historical volatility
+            vol_fig.add_trace(
+                go.Scatter(
+                    x=rolling_vol_asset.index,
+                    y=rolling_vol_asset.values * 100,
+                    mode='lines',
+                    name='Historical Volatility (252d)',
+                    line=dict(color='#1f77b4', width=2)
+                )
             )
             
-            col_f1, col_f2 = st.columns([3, 1.2])
-            with col_f1:
-                st.plotly_chart(forecast_fig, use_container_width=True)
-                # Display which model was actually used (important for transparency).
-                model_status = "⚠️ Fallback" if fallback_used else "✅ Active"
-                st.caption(
-                    f"{model_status} **Model used:** {forecast_model_used}. "
-                    "The forecast line shows projected cumulative returns based on historical patterns."
-                )
-            with col_f2:
-                # Summarize the forecast in intuitive statistics.
-                mean_ret = forecast_series.mean()
-                std_ret = forecast_series.std()
-                cum_ret = (1 + forecast_series).prod() - 1
-                st.markdown("##### Forecast summary")
-                st.write(f"- **Model**: {forecast_model_used}")
-                st.write(f"- **Mean daily return**: {format_pct(mean_ret, 3)}")
-                st.write(f"- **Daily volatility**: {format_pct(std_ret, 3)}")
-                st.write(f"- **{forecast_horizon}-day cumulative**: {format_pct(cum_ret, 2)}")
-                if fallback_used:
-                    st.caption(
-                        "💡 Install `statsmodels` (pip install statsmodels) to enable ARIMA and Exponential Smoothing models."
+            # Forecasted volatility for each model
+            for model_name, forecast_series in ticker_predictions.items():
+                if forecast_series is not None and len(forecast_series) > 0:
+                    # Calculate rolling volatility of forecast
+                    forecast_vol = forecast_series.rolling(window=min(10, len(forecast_series))).std() * np.sqrt(252) * 100
+                    
+                    vol_fig.add_trace(
+                        go.Scatter(
+                            x=forecast_vol.index,
+                            y=forecast_vol.values,
+                            mode='lines',
+                            name=f'{model_names[model_name]} Forecast Vol',
+                            line=dict(color=colors.get(model_name, '#000000'), width=2, dash="dash")
+                        )
                     )
+            
+            vol_fig.update_layout(
+                title=f"{ticker} - Volatility Outlook",
+                xaxis_title="Date",
+                yaxis_title="Annualized Volatility (%)",
+                height=350,
+                legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
+            )
+            st.plotly_chart(vol_fig, use_container_width=True)
+            
+            # Volatility summary
+            vol_summary_cols = st.columns(4)
+            latest_hist_vol = rolling_vol_asset.dropna().iloc[-1] if not rolling_vol_asset.dropna().empty else 0.0
+            for col_idx, (model_name, forecast_series) in enumerate(ticker_predictions.items()):
+                if forecast_series is not None and len(forecast_series) > 0:
+                    forecast_vol = forecast_series.std() * np.sqrt(252) * 100
+                    with vol_summary_cols[col_idx]:
+                        st.metric(
+                            f"{model_names[model_name]} Forecast Vol",
+                            f"{forecast_vol:.2f}%",
+                            delta=f"{(forecast_vol - latest_hist_vol*100):.2f}%",
+                            help="Forecasted annualized volatility vs historical"
+                        )
+            
+            # ==================================================================
+            # 3. Distribution of Returns Chart
+            # ==================================================================
+            st.markdown("#### 📉 Distribution of Returns")
+            
+            dist_fig = go.Figure()
+            
+            # Historical distribution
+            dist_fig.add_trace(
+                go.Histogram(
+                    x=asset_series.values * 100,
+                    nbinsx=50,
+                    name='Historical Returns',
+                    marker_color='#1f77b4',
+                    opacity=0.7
+                )
+            )
+            
+            # Forecast distributions for each model
+            for model_name, forecast_series in ticker_predictions.items():
+                if forecast_series is not None and len(forecast_series) > 0:
+                    dist_fig.add_trace(
+                        go.Histogram(
+                            x=forecast_series.values * 100,
+                            nbinsx=30,
+                            name=f'{model_names[model_name]} Forecast',
+                            marker_color=colors.get(model_name, '#000000'),
+                            opacity=0.5
+                        )
+                    )
+            
+            # Add VaR line if available
+            if ticker in returns.columns:
+                try:
+                    asset_var = value_at_risk(asset_series, confidence_level=0.95)
+                    dist_fig.add_vline(
+                        x=asset_var * 100,
+                        line_dash="dash",
+                        line_color="#d62728",
+                        annotation_text="VaR (95%)",
+                        annotation_position="top"
+                    )
+                except:
+                    pass
+            
+            dist_fig.update_layout(
+                title=f"{ticker} - Return Distribution: Historical vs Forecasts",
+                xaxis_title="Daily Return (%)",
+                yaxis_title="Frequency",
+                height=400,
+                barmode='overlay',
+                legend=dict(yanchor="top", y=0.99, xanchor="left", x=0.01)
+            )
+            st.plotly_chart(dist_fig, use_container_width=True)
+            
+            # Distribution statistics
+            dist_stats_cols = st.columns(4)
+            hist_mean = asset_series.mean() * 100
+            hist_std = asset_series.std() * 100
+            hist_skew = asset_series.skew()
+            
+            for col_idx, (model_name, forecast_series) in enumerate(ticker_predictions.items()):
+                if forecast_series is not None and len(forecast_series) > 0:
+                    with dist_stats_cols[col_idx]:
+                        st.markdown(f"**{model_names[model_name]}**")
+                        st.write(f"Mean: {forecast_series.mean()*100:.3f}%")
+                        st.write(f"Std: {forecast_series.std()*100:.3f}%")
+                        st.write(f"Skew: {forecast_series.skew():.3f}")
+            
+            # Historical stats for comparison
+            with st.expander(f"📋 {ticker} - Historical Statistics", expanded=False):
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Mean Return", f"{hist_mean:.4f}%")
+                with col2:
+                    st.metric("Std Dev", f"{hist_std:.4f}%")
+                with col3:
+                    st.metric("Skewness", f"{hist_skew:.3f}")
             
             st.markdown("---")
         
-        # ------------------------------------------------------------------
-        # Per-asset forecasts: one small chart per ticker, displayed side by side.
-        # ------------------------------------------------------------------
-        st.subheader(f"Per-asset forecasts for all {len(tickers)} companies")
-        st.caption(
-            f"Each panel forecasts a single company's returns using the same model as the portfolio forecast above. "
-            f"All {len(tickers)} companies are shown below."
-        )
+        # Summary across all companies
+        st.markdown("---")
+        st.subheader("📊 Summary: All Companies Comparison")
         
-        # Use the same forecasting method as selected for the portfolio, but fall back gracefully per asset.
-        n_cols_assets = min(3, max(1, len(tickers)))
-        for i in range(0, len(tickers), n_cols_assets):
-            row_tickers = tickers[i : i + n_cols_assets]
-            cols = st.columns(len(row_tickers))
-            for col_idx, ticker in enumerate(row_tickers):
-                with cols[col_idx]:
-                    st.markdown(f"**{ticker}**")
-                    asset_series = returns[ticker].dropna()
-                    if len(asset_series) < 10:
-                        st.caption("Not enough data to forecast (need at least 10 days).")
-                        continue
-                    try:
-                        # Try the same method as portfolio, but fall back to MA if it fails for this asset.
-                        asset_forecast = None
-                        asset_model_used = internal_forecast_method
-                        if internal_forecast_method == "ensemble":
-                            try:
-                                asset_ensemble = ensemble_forecast(
-                                    asset_series,
-                                    methods=["arima", "exponential_smoothing", "ma"],
-                                    forecast_horizon=forecast_horizon,
-                                )
-                                asset_forecast = asset_ensemble["ensemble_forecast"]
-                                asset_model_used = "ensemble"
-                            except:
-                                asset_result = forecast_portfolio_returns(
-                                    asset_series,
-                                    method="ma",
-                                    forecast_horizon=forecast_horizon,
-                                )
-                                asset_forecast = asset_result["forecast"]
-                                asset_model_used = "ma (fallback)"
-                        else:
-                            try:
-                                asset_result = forecast_portfolio_returns(
-                                    asset_series,
-                                    method=internal_forecast_method,
-                                    forecast_horizon=forecast_horizon,
-                                )
-                                asset_forecast = asset_result["forecast"]
-                                asset_model_used = internal_forecast_method
-                            except:
-                                # Fallback to MA if the selected method fails for this asset.
-                                asset_result = forecast_portfolio_returns(
-                                    asset_series,
-                                    method="ma",
-                                    forecast_horizon=forecast_horizon,
-                                )
-                                asset_forecast = asset_result["forecast"]
-                                asset_model_used = "ma (fallback)"
-                    except Exception as e:
-                        st.caption(f"Forecast error: {str(e)[:50]}")
-                        continue
+        # Create summary table
+        summary_data = []
+        for ticker in all_predictions.keys():
+            asset_series = returns[ticker].dropna()
+            for model_name, forecast_series in all_predictions[ticker].items():
+                if forecast_series is not None and len(forecast_series) > 0:
+                    cum_ret = (1 + forecast_series).prod() - 1
+                    forecast_vol = forecast_series.std() * np.sqrt(252)
+                    forecast_mean = forecast_series.mean() * 252
+                    sharpe_forecast = forecast_mean / forecast_vol if forecast_vol > 0 else 0
                     
-                    hist_window = min(len(asset_series), 252)
-                    recent_asset = asset_series.iloc[-hist_window:]
-                    cum_hist_asset = (1 + recent_asset).cumprod()
-                    cum_forecast_asset = (1 + asset_forecast).cumprod()
-                    cum_forecast_asset = cum_forecast_asset * cum_hist_asset.iloc[-1]
-                    
-                    fig_asset_f = go.Figure()
-                    fig_asset_f.add_trace(
-                        go.Scatter(
-                            x=cum_hist_asset.index,
-                            y=cum_hist_asset.values * 100,
-                            mode="lines",
-                            name="Historical",
-                        )
-                    )
-                    fig_asset_f.add_trace(
-                        go.Scatter(
-                            x=cum_forecast_asset.index,
-                            y=cum_forecast_asset.values * 100,
-                            mode="lines",
-                            name="Forecast",
-                            line=dict(dash="dash"),
-                        )
-                    )
-                    fig_asset_f.update_layout(
-                        margin=dict(l=10, r=10, t=30, b=20),
-                        height=260,
-                        xaxis_title=None,
-                        yaxis_title="Cumulative Return (%)",
-                        showlegend=False,
-                    )
-                    st.plotly_chart(fig_asset_f, use_container_width=True)
-                    # Show which model was used for this asset's forecast.
-                    st.caption(f"Model: {asset_model_used}")
+                    summary_data.append({
+                        'Company': ticker,
+                        'Model': model_names[model_name],
+                        'Cumulative Return (%)': cum_ret * 100,
+                        'Forecast Volatility (%)': forecast_vol * 100,
+                        'Forecast Sharpe': sharpe_forecast
+                    })
         
-        # Keep the original risk-focused forward-looking diagnostics to complement the forecasts.
-        st.subheader("Forward-looking diagnostics")
-        st.info(
-            "These diagnostics translate the chosen risk engine into volatility and tail-risk insights. "
-            "Use them to understand how today’s configuration might behave tomorrow."
-        )
-        
-        rolling_vol = rolling_volatility(portfolio_returns, window=252)
-        vol_fig = go.Figure()
-        vol_fig.add_trace(go.Scatter(
-            x=rolling_vol.index,
-            y=rolling_vol.values * 100,
-            mode='lines',
-            name='Rolling Volatility (252 days)',
-            line=dict(color='#6a1b9a', width=2)
-        ))
-        vol_fig.update_layout(
-            title="Volatility Outlook",
-            xaxis_title="Date",
-            yaxis_title="Volatility (%)",
-            height=320
-        )
-        vol_cols = st.columns([3, 1.2])
-        with vol_cols[0]:
-            st.plotly_chart(vol_fig, use_container_width=True)
-        latest_vol = rolling_vol.dropna().iloc[-1] if not rolling_vol.dropna().empty else 0.0
-        mean_vol = rolling_vol.mean()
-        vol_default = (
-            f"Recent volatility sits near {format_pct(latest_vol, 2)} vs a {format_pct(mean_vol, 2)} average. "
-            "Lean in if you can stomach swings at this level; stay cautious if you need smoother rides."
-        )
-        vol_stats = (
-            f"Latest rolling volatility {latest_vol:.4f}; mean {mean_vol:.4f}; "
-            f"window length {rolling_vol.count()}."
-        )
-        with vol_cols[1]:
-            render_insight_box("Volatility Outlook", vol_stats, vol_default)
-        
-        hist_fig = go.Figure()
-        hist_fig.add_trace(go.Histogram(
-            x=portfolio_returns.values * 100,
-            nbinsx=50,
-            name='Portfolio Returns',
-            marker_color='#1f77b4'
-        ))
-        hist_fig.add_vline(
-            x=metrics['var_95'] * 100,
-            line_dash="dash",
-            line_color="#d62728",
-            annotation_text="VaR (95%)"
-        )
-        hist_fig.update_layout(
-            title="Distribution Of Returns",
-            xaxis_title="Daily Return (%)",
-            yaxis_title="Frequency",
-            height=320
-        )
-        dist_cols = st.columns([3, 1.2])
-        with dist_cols[0]:
-            st.plotly_chart(hist_fig, use_container_width=True)
-        returns_np = portfolio_returns.dropna()
-        skew_val = returns_np.skew()
-        kurt_val = returns_np.kurt()
-        var_val = metrics.get("var_95", 0)
-        cvar_val = metrics.get("cvar_95", 0)
-        dist_default = (
-            f"Typical daily move is ~{format_pct(returns_np.std(), 2)}; "
-            f"VaR 95 is {format_pct(var_val, 2)}, CVaR 95 is {format_pct(cvar_val, 2)}. "
-            "Lean in if these tail-loss levels fit your risk budget; stay cautious if the downside feels steep."
-        )
-        dist_stats = (
-            f"Stdev {returns_np.std():.4f}; skew {skew_val:.3f}; kurtosis {kurt_val:.3f}; "
-            f"VaR {var_val:.4f}; CVaR {cvar_val:.4f}."
-        )
-        with dist_cols[1]:
-            render_insight_box("Return Distribution", dist_stats, dist_default)
-        
-        if risk_model == "garch":
-            st.success("Because you selected a volatility-forecasting engine, emphasis is placed on recent volatility spikes and decay.")
-        elif risk_model == "glasso":
-            st.success("Sparse dependency modeling highlights clusters of assets that move together—great for stress testing correlation breakdowns.")
-        elif risk_model == "ledoit_wolf":
-            st.success("Shrinkage keeps the covariance matrix stable, so the predicted volatility path is smoother than raw history.")
-        else:
-            st.success("Sample covariance reflects pure historical co-movement. Combine with walk-forward testing to validate robustness.")
+        if summary_data:
+            summary_df = pd.DataFrame(summary_data)
+            st.dataframe(summary_df, use_container_width=True, hide_index=True)
+            
+            # Pivot table for easier comparison
+            pivot_cum_ret = summary_df.pivot(index='Company', columns='Model', values='Cumulative Return (%)')
+            st.markdown("#### Cumulative Returns Comparison (%)")
+            st.dataframe(pivot_cum_ret, use_container_width=True)
+            
+            pivot_vol = summary_df.pivot(index='Company', columns='Model', values='Forecast Volatility (%)')
+            st.markdown("#### Forecast Volatility Comparison (%)")
+            st.dataframe(pivot_vol, use_container_width=True)
 
 else:
     # Initial state - show instructions
