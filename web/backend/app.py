@@ -2,6 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from routers import api_router
+from routers.prediction import router as prediction_router
 
 
 app = FastAPI(
@@ -28,6 +29,7 @@ async def health_check() -> dict:
 
 # Mount versioned API under /api
 app.include_router(api_router, prefix="/api")
+app.include_router(prediction_router, prefix="/api/portfolio", tags=["prediction"])
 
 
 if __name__ == "__main__":

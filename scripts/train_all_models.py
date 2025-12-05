@@ -77,7 +77,7 @@ except ImportError:
     pass
 
 # Add project root to path
-project_root = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
 # Local imports
@@ -107,7 +107,7 @@ def get_all_tickers_from_dataset() -> List[str]:
     Returns:
         List of ticker symbols (e.g., ['AAPL', 'MSFT', ...])
     """
-    dataset_dir = os.path.join(project_root, 'Dataset')
+    dataset_dir = os.path.join(project_root, 'data')
     
     if not os.path.exists(dataset_dir):
         print(f"❌ Dataset directory not found: {dataset_dir}")

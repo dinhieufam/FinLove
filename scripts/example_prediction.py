@@ -13,6 +13,13 @@ import matplotlib.pyplot as plt
 import plotly.graph_objects as go
 from datetime import datetime
 
+import sys
+import os
+
+# Add project root to path
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
+
 from src.predict import predict_future_performance
 from src.model_collector import collect_all_model_results, get_best_models
 

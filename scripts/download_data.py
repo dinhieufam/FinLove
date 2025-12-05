@@ -73,7 +73,7 @@ GROWTH_STOCKS = [
 ]
 
 # Destination folder for CSVs
-DATASET_DIR = "./Dataset"
+DATASET_DIR = os.path.join(os.path.dirname(__file__), '..', 'data')
 
 def ensure_dir_exists(directory):
     """Ensure data directory exists."""

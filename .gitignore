@@ -167,3 +167,12 @@ logs/
 .cache/
 
 FinLove_env/
+
+# From web/frontend/.gitignore
+.pnp
+.pnp.js
+coverage/
+.vercel
+*.local
+next-analysis
+*.tsbuildinfo

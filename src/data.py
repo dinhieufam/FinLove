@@ -22,8 +22,8 @@ import yfinance as yf
 warnings.filterwarnings('ignore')
 
 # Module-level constants
-CACHE_DIR = os.path.join(os.path.dirname(__file__), '..', 'data_cache')
-DATASET_DIR = os.path.join(os.path.dirname(__file__), '..', 'Dataset')
+CACHE_DIR = os.path.join(os.path.dirname(__file__), '..', 'data', 'cache')
+DATASET_DIR = os.path.join(os.path.dirname(__file__), '..', 'data')
 
 # Create cache directory if it doesn't exist
 os.makedirs(CACHE_DIR, exist_ok=True)
