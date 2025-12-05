@@ -16,6 +16,13 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+# Local imports
+from .model_cache import (
+    get_model_cache_key,
+    load_model_from_cache,
+    save_model_to_cache
+)
+
 # Suppress warnings
 warnings.filterwarnings('ignore')
 
@@ -214,7 +221,9 @@ def lstm_forecast(
     lookback_window: int = 60,
     lstm_units: int = 50,
     epochs: int = 50,
-    batch_size: int = 32
+    batch_size: int = 32,
+    use_cache: bool = True,
+    ticker: str = ""
 ) -> Tuple[pd.Series, Optional[pd.Series]]:
     """
     Forecast using LSTM neural network.
@@ -245,9 +254,31 @@ def lstm_forecast(
     if len(series_clean) < lookback_window + forecast_horizon:
         raise ValueError(f"Insufficient data. Need at least {lookback_window + forecast_horizon} periods")
     
+    # Check cache
+    cache_key = None
+    model = None
+    scaler = None
+    
+    if use_cache and ticker:
+        cache_key = get_model_cache_key(
+            ticker=ticker,
+            model_type='lstm',
+            lookback_window=lookback_window,
+            epochs=epochs,
+            lstm_units=lstm_units
+        )
+        cached_result = load_model_from_cache(cache_key)
+        if cached_result:
+            model, scaler, _ = cached_result
+            # Model loaded from cache - no training needed
+    
     # Normalize data
-    scaler = MinMaxScaler(feature_range=(0, 1))
-    scaled_data = scaler.fit_transform(series_clean)
+    if scaler is None:
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        scaled_data = scaler.fit_transform(series_clean)
+    else:
+        # Use existing scaler but fit on new data (in case data range changed)
+        scaled_data = scaler.fit_transform(series_clean)
     
     # Prepare training data
     X_train, y_train = [], []
@@ -258,19 +289,586 @@ def lstm_forecast(
     X_train, y_train = np.array(X_train), np.array(y_train)
     X_train = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1))
     
-    # Build LSTM model
-    model = Sequential([
-        LSTM(units=lstm_units, return_sequences=True, input_shape=(lookback_window, 1)),
-        Dropout(0.2),
-        LSTM(units=lstm_units, return_sequences=False),
-        Dropout(0.2),
-        Dense(units=1)
-    ])
+    # Build and train model if not cached
+    if model is None:
+        # Build LSTM model
+        model = Sequential([
+            LSTM(units=lstm_units, return_sequences=True, input_shape=(lookback_window, 1)),
+            Dropout(0.2),
+            LSTM(units=lstm_units, return_sequences=False),
+            Dropout(0.2),
+            Dense(units=1)
+        ])
+        
+        model.compile(optimizer='adam', loss='mean_squared_error')
+        
+        # Train model
+        model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=0)
+        
+        # Save to cache
+        if use_cache and ticker and cache_key:
+            save_model_to_cache(
+                cache_key=cache_key,
+                model=model,
+                scaler=scaler,
+                ticker=ticker,
+                model_type='lstm',
+                lookback_window=lookback_window,
+                epochs=epochs,
+                lstm_units=lstm_units
+            )
     
-    model.compile(optimizer='adam', loss='mean_squared_error')
+    # Forecast
+    last_sequence = scaled_data[-lookback_window:].reshape(1, lookback_window, 1)
+    forecasts = []
     
-    # Train model
-    model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=0)
+    for _ in range(forecast_horizon):
+        next_pred = model.predict(last_sequence, verbose=0)
+        forecasts.append(next_pred[0, 0])
+        # Update sequence for next prediction
+        last_sequence = np.append(last_sequence[:, 1:, :], next_pred.reshape(1, 1, 1), axis=1)
+    
+    # Inverse transform
+    forecasts = np.array(forecasts).reshape(-1, 1)
+    forecasts = scaler.inverse_transform(forecasts).flatten()
+    
+    # Create future dates
+    last_date = series.index[-1]
+    if isinstance(last_date, pd.Timestamp):
+        freq = pd.infer_freq(series.index)
+        if freq is None:
+            freq = 'D'
+        future_dates = pd.date_range(
+            start=last_date + pd.Timedelta(days=1),
+            periods=forecast_horizon,
+            freq=freq
+        )
+    else:
+        future_dates = range(len(series), len(series) + forecast_horizon)
+    
+    forecast_series = pd.Series(forecasts, index=future_dates)
+    
+    return forecast_series, None
+
+
+def tcn_forecast(
+    series: pd.Series,
+    forecast_horizon: int = 30,
+    lookback_window: int = 60,
+    num_filters: int = 64,
+    kernel_size: int = 3,
+    num_blocks: int = 2,
+    epochs: int = 50,
+    batch_size: int = 32,
+    use_cache: bool = True,
+    ticker: str = ""
+) -> Tuple[pd.Series, Optional[pd.Series]]:
+    """
+    Forecast using Temporal Convolutional Network (TCN).
+    
+    TCN uses dilated convolutions to capture long-term dependencies in time series.
+    This implementation uses 1D convolutions with causal padding.
+    
+    Args:
+        series: Time series to forecast
+        forecast_horizon: Number of periods ahead to forecast
+        lookback_window: Number of past periods to use as input
+        num_filters: Number of filters in each convolutional layer
+        kernel_size: Size of the convolutional kernel
+        num_blocks: Number of TCN blocks (each block doubles the dilation)
+        epochs: Training epochs
+        batch_size: Batch size for training
+    
+    Returns:
+        Tuple of (forecast, None) - confidence intervals not available for TCN
+    """
+    try:
+        from sklearn.preprocessing import MinMaxScaler  # type: ignore
+        from tensorflow.keras.models import Model  # type: ignore
+        from tensorflow.keras.layers import Input, Conv1D, Add, Activation, Dropout, Dense  # type: ignore
+        from tensorflow.keras.optimizers import Adam  # type: ignore
+    except ImportError as e:
+        raise ImportError("TensorFlow/Keras and scikit-learn are required for TCN forecasting") from e
+    
+    series_clean = series.dropna().values.reshape(-1, 1)
+    
+    if len(series_clean) < lookback_window + forecast_horizon:
+        raise ValueError(f"Insufficient data. Need at least {lookback_window + forecast_horizon} periods")
+    
+    # Check cache
+    cache_key = None
+    model = None
+    scaler = None
+    
+    if use_cache and ticker:
+        cache_key = get_model_cache_key(
+            ticker=ticker,
+            model_type='tcn',
+            lookback_window=lookback_window,
+            epochs=epochs,
+            num_filters=num_filters,
+            kernel_size=kernel_size,
+            num_blocks=num_blocks
+        )
+        cached_result = load_model_from_cache(cache_key)
+        if cached_result:
+            model, scaler, _ = cached_result
+    
+    # Normalize data
+    if scaler is None:
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        scaled_data = scaler.fit_transform(series_clean)
+    else:
+        scaled_data = scaler.fit_transform(series_clean)
+    
+    # Prepare training data
+    X_train, y_train = [], []
+    for i in range(lookback_window, len(scaled_data)):
+        X_train.append(scaled_data[i-lookback_window:i, 0])
+        y_train.append(scaled_data[i, 0])
+    
+    X_train, y_train = np.array(X_train), np.array(y_train)
+    X_train = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1))
+    
+    # Build TCN model
+    # TCN uses dilated causal convolutions
+    def tcn_block(x, filters, kernel_size, dilation_rate, block_num):
+        """Create a TCN residual block with dilated convolutions."""
+        # First convolution with dilation
+        conv1 = Conv1D(
+            filters=filters,
+            kernel_size=kernel_size,
+            dilation_rate=dilation_rate,
+            padding='causal',
+            name=f'tcn_conv1_block_{block_num}'
+        )(x)
+        conv1 = Activation('relu')(conv1)
+        conv1 = Dropout(0.2)(conv1)
+        
+        # Second convolution
+        conv2 = Conv1D(
+            filters=filters,
+            kernel_size=kernel_size,
+            dilation_rate=dilation_rate,
+            padding='causal',
+            name=f'tcn_conv2_block_{block_num}'
+        )(conv1)
+        conv2 = Activation('relu')(conv2)
+        conv2 = Dropout(0.2)(conv2)
+        
+        # Residual connection (if dimensions match)
+        if x.shape[-1] == filters:
+            res = Add()([x, conv2])
+        else:
+            # Projection shortcut if dimensions don't match
+            shortcut = Conv1D(filters=filters, kernel_size=1, padding='same')(x)
+            res = Add()([shortcut, conv2])
+        
+        return res
+    
+    # Build and train model if not cached
+    if model is None:
+        # Input layer
+        inputs = Input(shape=(lookback_window, 1))
+        x = inputs
+        
+        # Build TCN blocks with increasing dilation rates
+        for i in range(num_blocks):
+            dilation_rate = 2 ** i
+            x = tcn_block(x, num_filters, kernel_size, dilation_rate, i)
+        
+        # Final layers
+        x = Conv1D(filters=num_filters, kernel_size=1, padding='same')(x)
+        x = Activation('relu')(x)
+        x = Dropout(0.2)(x)
+        
+        # Global average pooling and output
+        x = Conv1D(filters=1, kernel_size=1, padding='same')(x)
+        x = Dense(1)(x)
+        model = Model(inputs=inputs, outputs=x)
+        model.compile(optimizer=Adam(learning_rate=0.001), loss='mean_squared_error')
+        
+        # Train model
+        model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=0)
+        
+        # Save to cache
+        if use_cache and ticker and cache_key:
+            save_model_to_cache(
+                cache_key=cache_key,
+                model=model,
+                scaler=scaler,
+                ticker=ticker,
+                model_type='tcn',
+                lookback_window=lookback_window,
+                epochs=epochs,
+                num_filters=num_filters,
+                kernel_size=kernel_size,
+                num_blocks=num_blocks
+            )
+    
+    # Forecast
+    last_sequence = scaled_data[-lookback_window:].reshape(1, lookback_window, 1)
+    forecasts = []
+    
+    for _ in range(forecast_horizon):
+        next_pred = model.predict(last_sequence, verbose=0)
+        # Handle different output shapes from TCN model
+        if next_pred.ndim == 3:
+            # TCN outputs (1, 1, 1) shape
+            pred_value = next_pred[0, 0, 0]
+        elif next_pred.ndim == 2:
+            # Some models output (1, 1) shape
+            pred_value = next_pred[0, 0]
+        else:
+            # Fallback for other shapes
+            pred_value = next_pred.flatten()[0]
+        
+        forecasts.append(pred_value)
+        # Update sequence for next prediction - ensure correct shape
+        pred_reshaped = np.array([[pred_value]]).reshape(1, 1, 1)
+        last_sequence = np.append(last_sequence[:, 1:, :], pred_reshaped, axis=1)
+    
+    # Inverse transform
+    forecasts = np.array(forecasts).reshape(-1, 1)
+    forecasts = scaler.inverse_transform(forecasts).flatten()
+    
+    # Create future dates
+    last_date = series.index[-1]
+    if isinstance(last_date, pd.Timestamp):
+        freq = pd.infer_freq(series.index)
+        if freq is None:
+            freq = 'D'
+        future_dates = pd.date_range(
+            start=last_date + pd.Timedelta(days=1),
+            periods=forecast_horizon,
+            freq=freq
+        )
+    else:
+        future_dates = range(len(series), len(series) + forecast_horizon)
+    
+    forecast_series = pd.Series(forecasts, index=future_dates)
+    
+    return forecast_series, None
+
+
+def xgboost_forecast(
+    series: pd.Series,
+    forecast_horizon: int = 30,
+    lookback_window: int = 60,
+    n_estimators: int = 100,
+    max_depth: int = 6,
+    learning_rate: float = 0.1,
+    use_cache: bool = True,
+    ticker: str = ""
+) -> Tuple[pd.Series, Optional[pd.Series]]:
+    """
+    Forecast using XGBoost gradient boosting.
+    
+    XGBoost creates features from lagged values and uses gradient boosting
+    to predict future returns.
+    
+    Args:
+        series: Time series to forecast
+        forecast_horizon: Number of periods ahead to forecast
+        lookback_window: Number of past periods to use as features
+        n_estimators: Number of boosting rounds
+        max_depth: Maximum tree depth
+        learning_rate: Learning rate for boosting
+    
+    Returns:
+        Tuple of (forecast, confidence_intervals)
+    """
+    try:
+        import xgboost as xgb  # type: ignore
+        from sklearn.preprocessing import StandardScaler  # type: ignore
+    except ImportError as e:
+        raise ImportError("XGBoost and scikit-learn are required for XGBoost forecasting") from e
+    
+    series_clean = series.dropna()
+    
+    if len(series_clean) < lookback_window + forecast_horizon:
+        raise ValueError(f"Insufficient data. Need at least {lookback_window + forecast_horizon} periods")
+    
+    # Check cache
+    cache_key = None
+    model = None
+    scaler = None
+    
+    if use_cache and ticker:
+        cache_key = get_model_cache_key(
+            ticker=ticker,
+            model_type='xgboost',
+            lookback_window=lookback_window,
+            n_estimators=n_estimators,
+            max_depth=max_depth,
+            learning_rate=learning_rate
+        )
+        cached_result = load_model_from_cache(cache_key)
+        if cached_result:
+            model, scaler, _ = cached_result
+    
+    # Create features from lagged values
+    def create_features(data, window):
+        """Create features from lagged values and rolling statistics."""
+        features = []
+        targets = []
+        
+        for i in range(window, len(data)):
+            # Lagged values
+            lag_features = data.iloc[i-window:i].values
+            
+            # Rolling statistics
+            rolling_mean = data.iloc[i-window:i].mean()
+            rolling_std = data.iloc[i-window:i].std()
+            rolling_max = data.iloc[i-window:i].max()
+            rolling_min = data.iloc[i-window:i].min()
+            
+            # Combine features
+            feature_vector = np.concatenate([
+                lag_features,
+                [rolling_mean, rolling_std, rolling_max, rolling_min]
+            ])
+            
+            features.append(feature_vector)
+            targets.append(data.iloc[i])
+        
+        return np.array(features), np.array(targets)
+    
+    # Prepare training data
+    X_train, y_train = create_features(series_clean, lookback_window)
+    
+    # Normalize features
+    if scaler is None:
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train)
+    else:
+        X_train_scaled = scaler.fit_transform(X_train)
+    
+    # Train XGBoost model if not cached
+    if model is None:
+        model = xgb.XGBRegressor(
+            n_estimators=n_estimators,
+            max_depth=max_depth,
+            learning_rate=learning_rate,
+            random_state=42,
+            n_jobs=-1
+        )
+        model.fit(X_train_scaled, y_train)
+        
+        # Save to cache
+        if use_cache and ticker and cache_key:
+            save_model_to_cache(
+                cache_key=cache_key,
+                model=model,
+                scaler=scaler,
+                ticker=ticker,
+                model_type='xgboost',
+                lookback_window=lookback_window,
+                n_estimators=n_estimators,
+                max_depth=max_depth,
+                learning_rate=learning_rate
+            )
+    
+    # Forecast recursively
+    forecasts = []
+    last_values = series_clean.iloc[-lookback_window:].values
+    
+    for _ in range(forecast_horizon):
+        # Create features from last values
+        rolling_mean = np.mean(last_values)
+        rolling_std = np.std(last_values)
+        rolling_max = np.max(last_values)
+        rolling_min = np.min(last_values)
+        
+        feature_vector = np.concatenate([
+            last_values,
+            [rolling_mean, rolling_std, rolling_max, rolling_min]
+        ]).reshape(1, -1)
+        
+        # Scale features
+        feature_vector_scaled = scaler.transform(feature_vector)
+        
+        # Predict next value
+        next_pred = model.predict(feature_vector_scaled)[0]
+        forecasts.append(next_pred)
+        
+        # Update last values (shift and append)
+        last_values = np.append(last_values[1:], next_pred)
+    
+    # Create future dates
+    last_date = series.index[-1]
+    if isinstance(last_date, pd.Timestamp):
+        freq = pd.infer_freq(series.index)
+        if freq is None:
+            freq = 'D'
+        future_dates = pd.date_range(
+            start=last_date + pd.Timedelta(days=1),
+            periods=forecast_horizon,
+            freq=freq
+        )
+    else:
+        future_dates = range(len(series), len(series) + forecast_horizon)
+    
+    forecast_series = pd.Series(forecasts, index=future_dates)
+    
+    # Simple confidence interval based on historical residuals
+    train_pred = model.predict(X_train_scaled)
+    residuals = y_train - train_pred
+    std_residual = np.std(residuals)
+    
+    conf_int_series = pd.DataFrame({
+        'lower': forecast_series - 1.96 * std_residual,
+        'upper': forecast_series + 1.96 * std_residual
+    }, index=future_dates)
+    
+    return forecast_series, conf_int_series
+
+
+def transformer_forecast(
+    series: pd.Series,
+    forecast_horizon: int = 30,
+    lookback_window: int = 60,
+    d_model: int = 64,
+    num_heads: int = 4,
+    num_layers: int = 2,
+    epochs: int = 50,
+    batch_size: int = 32,
+    use_cache: bool = True,
+    ticker: str = ""
+) -> Tuple[pd.Series, Optional[pd.Series]]:
+    """
+    Forecast using Time Series Transformer.
+    
+    This implementation uses a simplified transformer architecture with
+    multi-head attention for time series forecasting.
+    
+    Args:
+        series: Time series to forecast
+        forecast_horizon: Number of periods ahead to forecast
+        lookback_window: Number of past periods to use as input
+        d_model: Dimension of the model
+        num_heads: Number of attention heads
+        num_layers: Number of transformer layers
+        epochs: Training epochs
+        batch_size: Batch size for training
+    
+    Returns:
+        Tuple of (forecast, None) - confidence intervals not available for transformer
+    """
+    try:
+        from sklearn.preprocessing import MinMaxScaler  # type: ignore
+        from tensorflow.keras.models import Model  # type: ignore
+        from tensorflow.keras.layers import (
+            Input, Dense, Dropout, LayerNormalization, MultiHeadAttention,
+            GlobalAveragePooling1D, Add, Conv1D
+        )  # type: ignore
+        from tensorflow.keras.optimizers import Adam  # type: ignore
+    except ImportError as e:
+        raise ImportError("TensorFlow/Keras and scikit-learn are required for Transformer forecasting") from e
+    
+    series_clean = series.dropna().values.reshape(-1, 1)
+    
+    if len(series_clean) < lookback_window + forecast_horizon:
+        raise ValueError(f"Insufficient data. Need at least {lookback_window + forecast_horizon} periods")
+    
+    # Check cache
+    cache_key = None
+    model = None
+    scaler = None
+    
+    if use_cache and ticker:
+        cache_key = get_model_cache_key(
+            ticker=ticker,
+            model_type='transformer',
+            lookback_window=lookback_window,
+            epochs=epochs,
+            d_model=d_model,
+            num_heads=num_heads,
+            num_layers=num_layers
+        )
+        cached_result = load_model_from_cache(cache_key)
+        if cached_result:
+            model, scaler, _ = cached_result
+    
+    # Normalize data
+    if scaler is None:
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        scaled_data = scaler.fit_transform(series_clean)
+    else:
+        scaled_data = scaler.fit_transform(series_clean)
+    
+    # Prepare training data
+    X_train, y_train = [], []
+    for i in range(lookback_window, len(scaled_data)):
+        X_train.append(scaled_data[i-lookback_window:i, 0])
+        y_train.append(scaled_data[i, 0])
+    
+    X_train, y_train = np.array(X_train), np.array(y_train)
+    X_train = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1))
+    
+    # Build and train model if not cached
+    if model is None:
+        # Build Transformer model
+        def transformer_block(x, d_model, num_heads, name_prefix):
+            """Create a transformer block with self-attention."""
+            # Self-attention
+            attn_output = MultiHeadAttention(
+                num_heads=num_heads,
+                key_dim=d_model,
+                name=f'{name_prefix}_attention'
+            )(x, x)
+            attn_output = Dropout(0.1)(attn_output)
+            
+            # Add & Norm
+            x = Add()([x, attn_output])
+            x = LayerNormalization(name=f'{name_prefix}_norm1')(x)
+            
+            # Feed forward
+            ff_output = Dense(d_model * 2, activation='relu')(x)
+            ff_output = Dense(d_model)(ff_output)
+            ff_output = Dropout(0.1)(ff_output)
+            
+            # Add & Norm
+            x = Add()([x, ff_output])
+            x = LayerNormalization(name=f'{name_prefix}_norm2')(x)
+            
+            return x
+        
+        # Input layer
+        inputs = Input(shape=(lookback_window, 1))
+        
+        # Project to d_model dimensions
+        x = Conv1D(filters=d_model, kernel_size=1, padding='same')(inputs)
+        
+        # Stack transformer blocks
+        for i in range(num_layers):
+            x = transformer_block(x, d_model, num_heads, f'block_{i}')
+        
+        # Global pooling and output
+        x = GlobalAveragePooling1D()(x)
+        x = Dense(d_model, activation='relu')(x)
+        x = Dropout(0.2)(x)
+        outputs = Dense(1)(x)
+        model = Model(inputs=inputs, outputs=outputs)
+        model.compile(optimizer=Adam(learning_rate=0.001), loss='mean_squared_error')
+        
+        # Train model
+        model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=0)
+        
+        # Save to cache
+        if use_cache and ticker and cache_key:
+            save_model_to_cache(
+                cache_key=cache_key,
+                model=model,
+                scaler=scaler,
+                ticker=ticker,
+                model_type='transformer',
+                lookback_window=lookback_window,
+                epochs=epochs,
+                d_model=d_model,
+                num_heads=num_heads,
+                num_layers=num_layers
+            )
     
     # Forecast
     last_sequence = scaled_data[-lookback_window:].reshape(1, lookback_window, 1)
@@ -472,6 +1070,8 @@ def forecast_portfolio_returns(
     portfolio_returns: pd.Series,
     method: str = 'arima',
     forecast_horizon: int = 30,
+    use_cache: bool = True,
+    ticker: str = "",
     **kwargs
 ) -> Dict[str, pd.Series]:
     """
@@ -479,23 +1079,40 @@ def forecast_portfolio_returns(
     
     Args:
         portfolio_returns: Historical portfolio returns
-        method: Forecasting method ('arima', 'prophet', 'lstm', 'ma', 'exponential_smoothing')
+        method: Forecasting method ('arima', 'prophet', 'lstm', 'tcn', 'xgboost', 'transformer', 'ma', 'exponential_smoothing')
         forecast_horizon: Number of periods to forecast
+        use_cache: Whether to use cached models if available
+        ticker: Ticker symbol for caching (optional but recommended)
         **kwargs: Additional arguments for specific methods
     
     Returns:
         Dictionary with 'forecast' and 'confidence_intervals' (if available)
     """
+    # Filter out parameters that are handled explicitly or not applicable to certain methods
+    filtered_kwargs = kwargs.copy()
+    # Remove use_cache and ticker from kwargs since they're passed explicitly to neural network methods
+    filtered_kwargs.pop('use_cache', None)
+    filtered_kwargs.pop('ticker', None)
+    # Filter out 'epochs' parameter for XGBoost (it doesn't use epochs)
+    if method == 'xgboost' and 'epochs' in filtered_kwargs:
+        filtered_kwargs.pop('epochs')
+    
     if method == 'arima':
-        forecast, conf_int = arima_forecast(portfolio_returns, forecast_horizon, **kwargs)
+        forecast, conf_int = arima_forecast(portfolio_returns, forecast_horizon, **filtered_kwargs)
     elif method == 'prophet':
-        forecast, conf_int = prophet_forecast(portfolio_returns, forecast_horizon, **kwargs)
+        forecast, conf_int = prophet_forecast(portfolio_returns, forecast_horizon, **filtered_kwargs)
     elif method == 'lstm':
-        forecast, conf_int = lstm_forecast(portfolio_returns, forecast_horizon, **kwargs)
+        forecast, conf_int = lstm_forecast(portfolio_returns, forecast_horizon, use_cache=use_cache, ticker=ticker, **filtered_kwargs)
+    elif method == 'tcn':
+        forecast, conf_int = tcn_forecast(portfolio_returns, forecast_horizon, use_cache=use_cache, ticker=ticker, **filtered_kwargs)
+    elif method == 'xgboost':
+        forecast, conf_int = xgboost_forecast(portfolio_returns, forecast_horizon, use_cache=use_cache, ticker=ticker, **filtered_kwargs)
+    elif method == 'transformer':
+        forecast, conf_int = transformer_forecast(portfolio_returns, forecast_horizon, use_cache=use_cache, ticker=ticker, **filtered_kwargs)
     elif method == 'ma':
-        forecast, conf_int = simple_ma_forecast(portfolio_returns, forecast_horizon, **kwargs)
+        forecast, conf_int = simple_ma_forecast(portfolio_returns, forecast_horizon, **filtered_kwargs)
     elif method == 'exponential_smoothing':
-        forecast, conf_int = exponential_smoothing_forecast(portfolio_returns, forecast_horizon, **kwargs)
+        forecast, conf_int = exponential_smoothing_forecast(portfolio_returns, forecast_horizon, **filtered_kwargs)
     else:
         raise ValueError(f"Unknown forecasting method: {method}")
     

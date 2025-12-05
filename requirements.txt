@@ -28,4 +28,5 @@ openai>=1.12.0
 # Time series forecasting (optional - install as needed)
 # statsmodels>=0.14.0  # For ARIMA, exponential smoothing
 # prophet>=1.1.4  # For Prophet forecasting (requires: pip install prophet)
-# tensorflow>=2.13.0  # For LSTM models (optional)
+tensorflow>=2.13.0  # For LSTM, TCN, and Transformer models
+xgboost>=2.0.0  # For XGBoost forecasting
