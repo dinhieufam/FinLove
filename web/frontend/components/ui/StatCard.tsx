@@ -18,15 +18,15 @@ export function StatCard({
   tone = "neutral",
 }: StatCardProps) {
   return (
-    <div className="finlove-card p-4">
-      <p className="text-xs font-medium uppercase tracking-[0.08em] text-slate-400">
+    <div className="finlove-card p-5">
+      <p className="text-xs font-medium uppercase tracking-wider text-slate-500">
         {label}
       </p>
-      <p className={`mt-2 text-xl font-semibold ${toneToColor[tone]}`}>
+      <p className={`mt-3 text-2xl font-bold ${toneToColor[tone]}`}>
         {value}
       </p>
       {sublabel && (
-        <p className="mt-1 text-[11px] text-slate-400">{sublabel}</p>
+        <p className="mt-2 text-xs text-slate-400">{sublabel}</p>
       )}
     </div>
   );
