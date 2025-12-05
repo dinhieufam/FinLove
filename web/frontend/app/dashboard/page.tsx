@@ -141,9 +141,158 @@ export default function DashboardPage() {
   };
 
   const metrics = data?.metrics;
+  const sidebarContent = (
+    <>
+      {/* Universe & Period */}
+      <div className="finlove-card p-4" id="portfolio">
+        <div className="mb-4 flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/20">
+            <span className="text-sm">📊</span>
+          </div>
+          <h2 className="text-base font-semibold">Universe & Period</h2>
+        </div>
+        <p className="mb-4 text-xs leading-relaxed text-slate-400">
+          Select tickers and define your backtest window. Default values use sector ETFs matching the Streamlit dashboard.
+        </p>
+        <div className="space-y-4">
+          <div className="space-y-2">
+            <label className="block text-xs font-medium text-slate-300">
+              Tickers <span className="text-slate-500">(comma-separated)</span>
+            </label>
+            <input
+              value={tickers}
+              onChange={(e) => setTickers(e.target.value)}
+              className="w-full rounded-lg border border-slate-700/60 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 outline-none transition-colors focus:border-emerald-400/60 focus:bg-slate-900/80"
+              placeholder="AAPL, MSFT, GOOGL"
+            />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-slate-300">
+                Start Date
+              </label>
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                className="w-full rounded-lg border border-slate-700/60 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none transition-colors focus:border-emerald-400/60 focus:bg-slate-900/80"
+              />
+            </div>
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-slate-300">
+                End Date
+              </label>
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => setEndDate(e.target.value)}
+                className="w-full rounded-lg border border-slate-700/60 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none transition-colors focus:border-emerald-400/60 focus:bg-slate-900/80"
+              />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Risk & Optimization */}
+      <div className="finlove-card p-4" id="risk">
+        <div className="mb-4 flex items-center gap-2">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/20">
+            <span className="text-sm">⚙️</span>
+          </div>
+          <h2 className="text-base font-semibold">Risk & Optimization</h2>
+        </div>
+        <p className="mb-4 text-xs leading-relaxed text-slate-400">
+          Configure covariance estimation, portfolio objective, and risk appetite.
+        </p>
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-slate-300">
+                Risk Model
+              </label>
+              <select
+                value={riskModel}
+                onChange={(e) => setRiskModel(e.target.value)}
+                className="w-full rounded-lg border border-slate-700/60 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none transition-colors focus:border-emerald-400/60 focus:bg-slate-900/80"
+              >
+                <option value="ledoit_wolf">Ledoit-Wolf</option>
+                <option value="sample">Sample</option>
+                <option value="glasso">GLASSO</option>
+                <option value="garch">GARCH</option>
+              </select>
+            </div>
+            <div className="space-y-2">
+              <label className="block text-xs font-medium text-slate-300">
+                Optimization
+              </label>
+              <select
+                value={optimizationMethod}
+                onChange={(e) => setOptimizationMethod(e.target.value)}
+                className="w-full rounded-lg border border-slate-700/60 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none transition-colors focus:border-emerald-400/60 focus:bg-slate-900/80"
+              >
+                <option value="markowitz">Markowitz</option>
+                <option value="min_variance">Min Variance</option>
+                <option value="sharpe">Sharpe Max</option>
+                <option value="black_litterman">Black-Litterman</option>
+                <option value="cvar">CVaR</option>
+              </select>
+            </div>
+          </div>
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-xs font-medium text-slate-300">
+                Risk Appetite (λ)
+              </label>
+              <span className="text-xs font-semibold text-emerald-400">
+                {riskAversion.toFixed(1)}
+              </span>
+            </div>
+            <input
+              type="range"
+              min={0.1}
+              max={10}
+              step={0.1}
+              value={riskAversion}
+              onChange={(e) => setRiskAversion(parseFloat(e.target.value))}
+              className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-800 accent-emerald-500"
+            />
+            <p className="text-[11px] text-slate-500">
+              Higher values create more defensive portfolios
+            </p>
+          </div>
+          <div className="space-y-2">
+            <label className="block text-xs font-medium text-slate-300">
+              Backtest Type
+            </label>
+            <select
+              value={backtestType}
+              onChange={(e) => setBacktestType(e.target.value as "simple" | "walk_forward")}
+              className="w-full rounded-lg border border-slate-700/60 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none transition-colors focus:border-emerald-400/60 focus:bg-slate-900/80"
+            >
+              <option value="simple">Simple (one-time)</option>
+              <option value="walk_forward">Walk-forward (rolling)</option>
+            </select>
+          </div>
+          <button
+            type="button"
+            onClick={handleRun}
+            disabled={loading}
+            className="w-full rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-emerald-950 shadow-lg transition-all hover:bg-emerald-400 hover:shadow-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-emerald-500"
+          >
+            {loading ? "⏳ Running Analysis..." : "🚀 Run Analysis"}
+          </button>
+          {error && (
+            <div className="rounded-lg border border-rose-500/30 bg-rose-950/20 px-3 py-2">
+              <p className="text-xs text-rose-400">{error}</p>
+            </div>
+          )}
+        </div>
+      </div>
+    </>
+  );
 
   return (
-    <AppShell>
+    <AppShell sidebarContent={sidebarContent}>
       <div className="space-y-8">
         {/* Header */}
         <header className="flex flex-wrap items-start justify-between gap-4">
@@ -197,163 +346,10 @@ export default function DashboardPage() {
           </section>
         )}
 
-        {/* Main content grid */}
-        <div className="grid gap-6 lg:grid-cols-12">
-          {/* Left sidebar: Configuration */}
-          <aside className="lg:col-span-4 space-y-5" id="portfolio">
-            {/* Universe & Period */}
-            <div className="finlove-card p-5" id="portfolio">
-              <div className="mb-4 flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/20">
-                  <span className="text-sm">📊</span>
-                </div>
-                <h2 className="text-base font-semibold">Universe & Period</h2>
-              </div>
-              <p className="mb-4 text-xs leading-relaxed text-slate-400">
-                Select tickers and define your backtest window. Default values use sector ETFs matching the Streamlit dashboard.
-              </p>
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <label className="block text-xs font-medium text-slate-300">
-                    Tickers <span className="text-slate-500">(comma-separated)</span>
-                  </label>
-                  <input
-                    value={tickers}
-                    onChange={(e) => setTickers(e.target.value)}
-                    className="w-full rounded-lg border border-slate-700/60 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 outline-none transition-colors focus:border-emerald-400/60 focus:bg-slate-900/80"
-                    placeholder="AAPL, MSFT, GOOGL"
-                  />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <label className="block text-xs font-medium text-slate-300">
-                      Start Date
-                    </label>
-                    <input
-                      type="date"
-                      value={startDate}
-                      onChange={(e) => setStartDate(e.target.value)}
-                      className="w-full rounded-lg border border-slate-700/60 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none transition-colors focus:border-emerald-400/60 focus:bg-slate-900/80"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-xs font-medium text-slate-300">
-                      End Date
-                    </label>
-                    <input
-                      type="date"
-                      value={endDate}
-                      onChange={(e) => setEndDate(e.target.value)}
-                      className="w-full rounded-lg border border-slate-700/60 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none transition-colors focus:border-emerald-400/60 focus:bg-slate-900/80"
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Risk & Optimization */}
-            <div className="finlove-card p-5" id="risk">
-              <div className="mb-4 flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/20">
-                  <span className="text-sm">⚙️</span>
-                </div>
-                <h2 className="text-base font-semibold">Risk & Optimization</h2>
-              </div>
-              <p className="mb-4 text-xs leading-relaxed text-slate-400">
-                Configure covariance estimation, portfolio objective, and risk appetite.
-              </p>
-              <div className="space-y-4">
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="space-y-2">
-                    <label className="block text-xs font-medium text-slate-300">
-                      Risk Model
-                    </label>
-                    <select
-                      value={riskModel}
-                      onChange={(e) => setRiskModel(e.target.value)}
-                      className="w-full rounded-lg border border-slate-700/60 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none transition-colors focus:border-emerald-400/60 focus:bg-slate-900/80"
-                    >
-                      <option value="ledoit_wolf">Ledoit-Wolf</option>
-                      <option value="sample">Sample</option>
-                      <option value="glasso">GLASSO</option>
-                      <option value="garch">GARCH</option>
-                    </select>
-                  </div>
-                  <div className="space-y-2">
-                    <label className="block text-xs font-medium text-slate-300">
-                      Optimization
-                    </label>
-                    <select
-                      value={optimizationMethod}
-                      onChange={(e) => setOptimizationMethod(e.target.value)}
-                      className="w-full rounded-lg border border-slate-700/60 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none transition-colors focus:border-emerald-400/60 focus:bg-slate-900/80"
-                    >
-                      <option value="markowitz">Markowitz</option>
-                      <option value="min_variance">Min Variance</option>
-                      <option value="sharpe">Sharpe Max</option>
-                      <option value="black_litterman">Black-Litterman</option>
-                      <option value="cvar">CVaR</option>
-                    </select>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="block text-xs font-medium text-slate-300">
-                      Risk Appetite (λ)
-                    </label>
-                    <span className="text-xs font-semibold text-emerald-400">
-                      {riskAversion.toFixed(1)}
-                    </span>
-                  </div>
-                  <input
-                    type="range"
-                    min={0.1}
-                    max={10}
-                    step={0.1}
-                    value={riskAversion}
-                    onChange={(e) => setRiskAversion(parseFloat(e.target.value))}
-                    className="h-2 w-full cursor-pointer appearance-none rounded-lg bg-slate-800 accent-emerald-500"
-                  />
-                  <p className="text-[11px] text-slate-500">
-                    Higher values create more defensive portfolios
-                  </p>
-                </div>
-                <div className="space-y-2">
-                  <label className="block text-xs font-medium text-slate-300">
-                    Backtest Type
-                  </label>
-                  <select
-                    value={backtestType}
-                    onChange={(e) =>
-                      setBacktestType(e.target.value as "simple" | "walk_forward")
-                    }
-                    className="w-full rounded-lg border border-slate-700/60 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none transition-colors focus:border-emerald-400/60 focus:bg-slate-900/80"
-                  >
-                    <option value="simple">Simple (one-time)</option>
-                    <option value="walk_forward">Walk-forward (rolling)</option>
-                  </select>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleRun}
-                  disabled={loading}
-                  className="w-full rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-semibold text-emerald-950 shadow-lg transition-all hover:bg-emerald-400 hover:shadow-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-emerald-500"
-                >
-                  {loading ? "⏳ Running Analysis..." : "🚀 Run Analysis"}
-                </button>
-                {error && (
-                  <div className="rounded-lg border border-rose-500/30 bg-rose-950/20 px-3 py-2">
-                    <p className="text-xs text-rose-400">{error}</p>
-                  </div>
-                )}
-              </div>
-            </div>
-          </aside>
-
-          {/* Right main: Charts & Analytics */}
-          <main className="lg:col-span-8 space-y-6" id="backtest">
-            {/* Performance Charts */}
-            <div className="finlove-card p-5" id="backtest">
+        {/* Main content */}
+        <div className="space-y-6" id="backtest">
+          {/* Performance Charts */}
+          <div className="finlove-card p-5" id="backtest">
               <div className="mb-4 flex items-center gap-2">
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/20">
                   <span className="text-sm">📈</span>
@@ -485,55 +481,54 @@ export default function DashboardPage() {
                   </div>
                 </div>
               )}
-            </div>
+          </div>
 
-            {/* Risk Metrics */}
-            <div className="finlove-card p-5" id="metrics">
-              <div className="mb-4 flex items-center gap-2">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/20">
-                  <span className="text-sm">📊</span>
-                </div>
-                <h2 className="text-base font-semibold">Risk Analytics</h2>
+          {/* Risk Metrics */}
+          <div className="finlove-card p-5" id="metrics">
+            <div className="mb-4 flex items-center gap-2">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-500/20">
+                <span className="text-sm">📊</span>
               </div>
-              {metrics ? (
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <div className="rounded-lg border border-slate-800/50 bg-slate-950/40 p-4">
-                    <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
-                      95% VaR
-                    </p>
-                    <p className="mt-2 text-xl font-bold text-slate-100">
-                      {(metrics.var_95 * 100).toFixed(2)}%
-                    </p>
-                    <p className="mt-1 text-xs text-slate-400">1-day horizon</p>
-                  </div>
-                  <div className="rounded-lg border border-slate-800/50 bg-slate-950/40 p-4">
-                    <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
-                      95% CVaR
-                    </p>
-                    <p className="mt-2 text-xl font-bold text-slate-100">
-                      {(metrics.cvar_95 * 100).toFixed(2)}%
-                    </p>
-                    <p className="mt-1 text-xs text-slate-400">Expected tail loss</p>
-                  </div>
-                  <div className="rounded-lg border border-slate-800/50 bg-slate-950/40 p-4">
-                    <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
-                      Volatility
-                    </p>
-                    <p className="mt-2 text-xl font-bold text-slate-100">
-                      {(metrics.annualized_volatility * 100).toFixed(2)}%
-                    </p>
-                    <p className="mt-1 text-xs text-slate-400">Annualized</p>
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-lg border border-slate-800/50 bg-slate-950/30 p-8 text-center">
-                  <p className="text-sm text-slate-400">
-                    Risk metrics will appear after running an analysis
-                  </p>
-                </div>
-              )}
+              <h2 className="text-base font-semibold">Risk Analytics</h2>
             </div>
-          </main>
+            {metrics ? (
+              <div className="grid gap-4 sm:grid-cols-3">
+                <div className="rounded-lg border border-slate-800/50 bg-slate-950/40 p-4">
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
+                    95% VaR
+                  </p>
+                  <p className="mt-2 text-xl font-bold text-slate-100">
+                    {(metrics.var_95 * 100).toFixed(2)}%
+                  </p>
+                  <p className="mt-1 text-xs text-slate-400">1-day horizon</p>
+                </div>
+                <div className="rounded-lg border border-slate-800/50 bg-slate-950/40 p-4">
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
+                    95% CVaR
+                  </p>
+                  <p className="mt-2 text-xl font-bold text-slate-100">
+                    {(metrics.cvar_95 * 100).toFixed(2)}%
+                  </p>
+                  <p className="mt-1 text-xs text-slate-400">Expected tail loss</p>
+                </div>
+                <div className="rounded-lg border border-slate-800/50 bg-slate-950/40 p-4">
+                  <p className="text-[11px] font-medium uppercase tracking-wider text-slate-500">
+                    Volatility
+                  </p>
+                  <p className="mt-2 text-xl font-bold text-slate-100">
+                    {(metrics.annualized_volatility * 100).toFixed(2)}%
+                  </p>
+                  <p className="mt-1 text-xs text-slate-400">Annualized</p>
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-slate-800/50 bg-slate-950/30 p-8 text-center">
+                <p className="text-sm text-slate-400">
+                  Risk metrics will appear after running an analysis
+                </p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </AppShell>
