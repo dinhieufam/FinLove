@@ -16,6 +16,7 @@ from typing import Any, Dict, List, Optional, Tuple
 import numpy as np
 import pandas as pd
 
+<<<<<<< HEAD
 # Local imports
 from .model_cache import (
     get_model_cache_key,
@@ -26,17 +27,54 @@ from .model_cache import (
 # Suppress warnings
 warnings.filterwarnings('ignore')
 
+=======
+# Suppress warnings
+warnings.filterwarnings('ignore')
+
+try:
+    from statsmodels.tsa.arima.model import ARIMA
+    from statsmodels.tsa.statespace.sarimax import SARIMAX
+    from statsmodels.tsa.holtwinters import ExponentialSmoothing
+    STATSMODELS_AVAILABLE = True
+except ImportError:
+    STATSMODELS_AVAILABLE = False
+    print("Warning: statsmodels not available. ARIMA models will be disabled.")
+
+try:
+    from prophet import Prophet
+    PROPHET_AVAILABLE = True
+except ImportError:
+    PROPHET_AVAILABLE = False
+    print("Warning: Prophet not available. Install with: pip install prophet")
+
+try:
+    from sklearn.preprocessing import MinMaxScaler
+    from tensorflow import keras
+    from tensorflow.keras.models import Sequential
+    from tensorflow.keras.layers import LSTM, Dense, Dropout
+    TENSORFLOW_AVAILABLE = True
+except ImportError:
+    TENSORFLOW_AVAILABLE = False
+    print("Warning: TensorFlow/Keras not available. LSTM models will be disabled.")
+
+>>>>>>> origin/trumai
 
 def arima_forecast(
     series: pd.Series,
     forecast_horizon: int = 30,
+<<<<<<< HEAD
     order: Optional[Tuple[int, int, int]] = None,
     seasonal_order: Optional[Tuple[int, int, int, int]] = None,
     auto_select: bool = True
+=======
+    order: Tuple[int, int, int] = (1, 1, 1),
+    seasonal_order: Optional[Tuple[int, int, int, int]] = None
+>>>>>>> origin/trumai
 ) -> Tuple[pd.Series, pd.Series]:
     """
     Forecast using ARIMA or SARIMA model.
     
+<<<<<<< HEAD
     This function performs a *lazy import* of ``statsmodels`` so that importing
     this module stays lightweight until ARIMA is actually needed.
     
@@ -46,20 +84,33 @@ def arima_forecast(
         order: (p, d, q) for ARIMA. If None and auto_select=True, will try to find optimal order
         seasonal_order: (P, D, Q, s) for SARIMA (optional)
         auto_select: If True, try multiple ARIMA orders to find best fit
+=======
+    Args:
+        series: Time series to forecast
+        forecast_horizon: Number of periods ahead to forecast
+        order: (p, d, q) for ARIMA
+        seasonal_order: (P, D, Q, s) for SARIMA (optional)
+>>>>>>> origin/trumai
     
     Returns:
         Tuple of (forecast, confidence_intervals)
     """
+<<<<<<< HEAD
     try:
         from statsmodels.tsa.arima.model import ARIMA
         from statsmodels.tsa.statespace.sarimax import SARIMAX
         from statsmodels.tsa.stattools import adfuller
     except ImportError as e:
         raise ImportError("statsmodels is required for ARIMA forecasting") from e
+=======
+    if not STATSMODELS_AVAILABLE:
+        raise ImportError("statsmodels is required for ARIMA forecasting")
+>>>>>>> origin/trumai
     
     # Remove NaN values
     series_clean = series.dropna()
     
+<<<<<<< HEAD
     if len(series_clean) < 20:
         raise ValueError("Insufficient data for ARIMA model (need at least 20 periods)")
     
@@ -109,13 +160,23 @@ def arima_forecast(
             order = (1, 1, 1)
         
         # Fit the model
+=======
+    if len(series_clean) < 10:
+        raise ValueError("Insufficient data for ARIMA model")
+    
+    try:
+>>>>>>> origin/trumai
         if seasonal_order:
             model = SARIMAX(series_clean, order=order, seasonal_order=seasonal_order)
         else:
             model = ARIMA(series_clean, order=order)
         
+<<<<<<< HEAD
         # Fit with better optimization settings
         fitted = model.fit(method_kwargs={"warn_convergence": False})
+=======
+        fitted = model.fit(disp=False)
+>>>>>>> origin/trumai
         
         # Forecast
         forecast = fitted.forecast(steps=forecast_horizon)
@@ -142,8 +203,13 @@ def arima_forecast(
         
     except Exception as e:
         print(f"ARIMA forecast error: {e}")
+<<<<<<< HEAD
         # Re-raise instead of silently falling back to avoid straight-line forecasts
         raise ValueError(f"ARIMA model failed: {e}") from e
+=======
+        # Fallback to simple moving average
+        return simple_ma_forecast(series, forecast_horizon)
+>>>>>>> origin/trumai
 
 
 def prophet_forecast(
@@ -156,9 +222,12 @@ def prophet_forecast(
     """
     Forecast using Facebook Prophet.
     
+<<<<<<< HEAD
     Prophet is **not** imported at module load time to keep imports fast. It is
     lazily imported here the first time this function is called.
     
+=======
+>>>>>>> origin/trumai
     Args:
         series: Time series to forecast
         forecast_horizon: Number of periods ahead to forecast
@@ -169,10 +238,15 @@ def prophet_forecast(
     Returns:
         Tuple of (forecast, confidence_intervals)
     """
+<<<<<<< HEAD
     try:
         from prophet import Prophet  # type: ignore
     except ImportError as e:
         raise ImportError("Prophet is required. Install with: pip install prophet") from e
+=======
+    if not PROPHET_AVAILABLE:
+        raise ImportError("Prophet is required. Install with: pip install prophet")
+>>>>>>> origin/trumai
     
     # Prepare data for Prophet (requires 'ds' and 'y' columns)
     series_clean = series.dropna()
@@ -221,16 +295,23 @@ def lstm_forecast(
     lookback_window: int = 60,
     lstm_units: int = 50,
     epochs: int = 50,
+<<<<<<< HEAD
     batch_size: int = 32,
     use_cache: bool = True,
     ticker: str = ""
+=======
+    batch_size: int = 32
+>>>>>>> origin/trumai
 ) -> Tuple[pd.Series, Optional[pd.Series]]:
     """
     Forecast using LSTM neural network.
     
+<<<<<<< HEAD
     TensorFlow / Keras and the scaler are lazily imported inside this function
     to avoid heavy imports when LSTM is not used.
     
+=======
+>>>>>>> origin/trumai
     Args:
         series: Time series to forecast
         forecast_horizon: Number of periods ahead to forecast
@@ -242,18 +323,24 @@ def lstm_forecast(
     Returns:
         Tuple of (forecast, None) - confidence intervals not available for LSTM
     """
+<<<<<<< HEAD
     try:
         from sklearn.preprocessing import MinMaxScaler  # type: ignore
         from tensorflow.keras.models import Sequential  # type: ignore
         from tensorflow.keras.layers import LSTM, Dense, Dropout  # type: ignore
     except ImportError as e:
         raise ImportError("TensorFlow/Keras and scikit-learn are required for LSTM forecasting") from e
+=======
+    if not TENSORFLOW_AVAILABLE:
+        raise ImportError("TensorFlow/Keras is required for LSTM forecasting")
+>>>>>>> origin/trumai
     
     series_clean = series.dropna().values.reshape(-1, 1)
     
     if len(series_clean) < lookback_window + forecast_horizon:
         raise ValueError(f"Insufficient data. Need at least {lookback_window + forecast_horizon} periods")
     
+<<<<<<< HEAD
     # Check cache
     cache_key = None
     model = None
@@ -279,6 +366,11 @@ def lstm_forecast(
     else:
         # Use existing scaler but fit on new data (in case data range changed)
         scaled_data = scaler.fit_transform(series_clean)
+=======
+    # Normalize data
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    scaled_data = scaler.fit_transform(series_clean)
+>>>>>>> origin/trumai
     
     # Prepare training data
     X_train, y_train = [], []
@@ -289,6 +381,7 @@ def lstm_forecast(
     X_train, y_train = np.array(X_train), np.array(y_train)
     X_train = np.reshape(X_train, (X_train.shape[0], X_train.shape[1], 1))
     
+<<<<<<< HEAD
     # Build and train model if not cached
     if model is None:
         # Build LSTM model
@@ -869,6 +962,21 @@ def transformer_forecast(
                 num_heads=num_heads,
                 num_layers=num_layers
             )
+=======
+    # Build LSTM model
+    model = Sequential([
+        LSTM(units=lstm_units, return_sequences=True, input_shape=(lookback_window, 1)),
+        Dropout(0.2),
+        LSTM(units=lstm_units, return_sequences=False),
+        Dropout(0.2),
+        Dense(units=1)
+    ])
+    
+    model.compile(optimizer='adam', loss='mean_squared_error')
+    
+    # Train model
+    model.fit(X_train, y_train, epochs=epochs, batch_size=batch_size, verbose=0)
+>>>>>>> origin/trumai
     
     # Forecast
     last_sequence = scaled_data[-lookback_window:].reshape(1, lookback_window, 1)
@@ -906,6 +1014,7 @@ def transformer_forecast(
 def simple_ma_forecast(
     series: pd.Series,
     forecast_horizon: int = 30,
+<<<<<<< HEAD
     window: int = 20,
     include_trend: bool = True
 ) -> Tuple[pd.Series, pd.Series]:
@@ -915,18 +1024,28 @@ def simple_ma_forecast(
     This baseline model now includes a simple trend component to avoid
     producing completely flat forecasts. For financial returns, it uses
     recent mean with mean reversion.
+=======
+    window: int = 20
+) -> Tuple[pd.Series, pd.Series]:
+    """
+    Simple moving average forecast (baseline).
+>>>>>>> origin/trumai
     
     Args:
         series: Time series to forecast
         forecast_horizon: Number of periods ahead to forecast
         window: Moving average window
+<<<<<<< HEAD
         include_trend: If True, add a simple trend/drift component
+=======
+>>>>>>> origin/trumai
     
     Returns:
         Tuple of (forecast, confidence_intervals)
     """
     series_clean = series.dropna()
     
+<<<<<<< HEAD
     # Calculate recent mean (used as starting point for forecast)
     if len(series_clean) < window:
         # Use all available data
@@ -957,6 +1076,15 @@ def simple_ma_forecast(
         drift = 0.0
     
     # Create future dates
+=======
+    if len(series_clean) < window:
+        # Use all available data
+        ma_value = series_clean.mean()
+    else:
+        ma_value = series_clean.iloc[-window:].mean()
+    
+    # Forecast is constant (mean)
+>>>>>>> origin/trumai
     last_date = series_clean.index[-1]
     if isinstance(last_date, pd.Timestamp):
         freq = pd.infer_freq(series_clean.index)
@@ -970,6 +1098,7 @@ def simple_ma_forecast(
     else:
         future_dates = range(len(series_clean), len(series_clean) + forecast_horizon)
     
+<<<<<<< HEAD
     # Generate forecast with trend/drift
     # For returns, apply mean reversion: forecast gradually returns to zero
     forecast_values = []
@@ -982,6 +1111,9 @@ def simple_ma_forecast(
         current_value = current_value * (1 - 0.05) + drift  # 5% mean reversion per period
     
     forecast_series = pd.Series(forecast_values, index=future_dates)
+=======
+    forecast_series = pd.Series([ma_value] * forecast_horizon, index=future_dates)
+>>>>>>> origin/trumai
     
     # Simple confidence interval based on historical volatility
     std = series_clean.std()
@@ -1013,10 +1145,15 @@ def exponential_smoothing_forecast(
     Returns:
         Tuple of (forecast, confidence_intervals)
     """
+<<<<<<< HEAD
     try:
         from statsmodels.tsa.holtwinters import ExponentialSmoothing
     except ImportError as e:
         raise ImportError("statsmodels is required for exponential smoothing") from e
+=======
+    if not STATSMODELS_AVAILABLE:
+        raise ImportError("statsmodels is required for exponential smoothing")
+>>>>>>> origin/trumai
     
     series_clean = series.dropna()
     
@@ -1061,17 +1198,24 @@ def exponential_smoothing_forecast(
         
     except Exception as e:
         print(f"Exponential smoothing error: {e}")
+<<<<<<< HEAD
         # Re-raise to let ensemble handle it, or use improved MA with trend
         # Don't silently fall back to avoid straight lines
         raise ValueError(f"Exponential smoothing failed: {e}") from e
+=======
+        return simple_ma_forecast(series, forecast_horizon)
+>>>>>>> origin/trumai
 
 
 def forecast_portfolio_returns(
     portfolio_returns: pd.Series,
     method: str = 'arima',
     forecast_horizon: int = 30,
+<<<<<<< HEAD
     use_cache: bool = True,
     ticker: str = "",
+=======
+>>>>>>> origin/trumai
     **kwargs
 ) -> Dict[str, pd.Series]:
     """
@@ -1079,15 +1223,21 @@ def forecast_portfolio_returns(
     
     Args:
         portfolio_returns: Historical portfolio returns
+<<<<<<< HEAD
         method: Forecasting method ('arima', 'prophet', 'lstm', 'tcn', 'xgboost', 'transformer', 'ma', 'exponential_smoothing')
         forecast_horizon: Number of periods to forecast
         use_cache: Whether to use cached models if available
         ticker: Ticker symbol for caching (optional but recommended)
+=======
+        method: Forecasting method ('arima', 'prophet', 'lstm', 'ma', 'exponential_smoothing')
+        forecast_horizon: Number of periods to forecast
+>>>>>>> origin/trumai
         **kwargs: Additional arguments for specific methods
     
     Returns:
         Dictionary with 'forecast' and 'confidence_intervals' (if available)
     """
+<<<<<<< HEAD
     # Filter out parameters that are handled explicitly or not applicable to certain methods
     filtered_kwargs = kwargs.copy()
     # Remove use_cache and ticker from kwargs since they're passed explicitly to neural network methods
@@ -1113,6 +1263,18 @@ def forecast_portfolio_returns(
         forecast, conf_int = simple_ma_forecast(portfolio_returns, forecast_horizon, **filtered_kwargs)
     elif method == 'exponential_smoothing':
         forecast, conf_int = exponential_smoothing_forecast(portfolio_returns, forecast_horizon, **filtered_kwargs)
+=======
+    if method == 'arima':
+        forecast, conf_int = arima_forecast(portfolio_returns, forecast_horizon, **kwargs)
+    elif method == 'prophet':
+        forecast, conf_int = prophet_forecast(portfolio_returns, forecast_horizon, **kwargs)
+    elif method == 'lstm':
+        forecast, conf_int = lstm_forecast(portfolio_returns, forecast_horizon, **kwargs)
+    elif method == 'ma':
+        forecast, conf_int = simple_ma_forecast(portfolio_returns, forecast_horizon, **kwargs)
+    elif method == 'exponential_smoothing':
+        forecast, conf_int = exponential_smoothing_forecast(portfolio_returns, forecast_horizon, **kwargs)
+>>>>>>> origin/trumai
     else:
         raise ValueError(f"Unknown forecasting method: {method}")
     
@@ -1132,10 +1294,13 @@ def ensemble_forecast(
     """
     Ensemble forecast using multiple methods.
     
+<<<<<<< HEAD
     This function tries multiple forecasting methods and combines their results.
     If a method fails, it's skipped (but at least one must succeed).
     The MA method is always included as a fallback to ensure we have at least one forecast.
     
+=======
+>>>>>>> origin/trumai
     Args:
         portfolio_returns: Historical portfolio returns
         methods: List of forecasting methods to use
@@ -1146,6 +1311,7 @@ def ensemble_forecast(
         Dictionary with ensemble forecast and individual forecasts
     """
     individual_forecasts = {}
+<<<<<<< HEAD
     failed_methods = []
     
     # Always try MA first as a baseline (it should always work)
@@ -1166,6 +1332,10 @@ def ensemble_forecast(
         if method == 'ma':
             continue  # Already tried
         
+=======
+    
+    for method in methods:
+>>>>>>> origin/trumai
         try:
             result = forecast_portfolio_returns(
                 portfolio_returns,
@@ -1175,6 +1345,7 @@ def ensemble_forecast(
             individual_forecasts[method] = result['forecast']
         except Exception as e:
             print(f"Warning: {method} forecast failed: {e}")
+<<<<<<< HEAD
             failed_methods.append(method)
             continue
     
@@ -1193,23 +1364,41 @@ def ensemble_forecast(
     # Align all forecasts to the same index
     forecast_df = pd.concat(forecast_dfs, axis=1)
     forecast_df = forecast_df.fillna(method='ffill').fillna(method='bfill')
+=======
+            continue
+    
+    if not individual_forecasts:
+        raise ValueError("All forecasting methods failed")
+    
+    # Combine forecasts
+    forecast_df = pd.DataFrame(individual_forecasts)
+>>>>>>> origin/trumai
     
     if aggregation == 'mean':
         ensemble = forecast_df.mean(axis=1)
     elif aggregation == 'median':
         ensemble = forecast_df.median(axis=1)
     elif aggregation == 'weighted':
+<<<<<<< HEAD
         # Weight by inverse of forecast variance (more stable forecasts get higher weight)
         weights = 1.0 / (forecast_df.std(axis=0) + 1e-6)
         weights = weights / weights.sum()
         ensemble = (forecast_df * weights).sum(axis=1)
+=======
+        # Equal weights for now
+        ensemble = forecast_df.mean(axis=1)
+>>>>>>> origin/trumai
     else:
         raise ValueError(f"Unknown aggregation method: {aggregation}")
     
     result = {
         'ensemble_forecast': ensemble,
+<<<<<<< HEAD
         'individual_forecasts': individual_forecasts,
         'failed_methods': failed_methods
+=======
+        'individual_forecasts': individual_forecasts
+>>>>>>> origin/trumai
     }
     
     return result

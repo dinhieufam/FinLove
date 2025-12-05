@@ -1,0 +1,42 @@
+* [33m5d54c8d[m[33m ([m[1;31morigin/minh_dang[m[33m)[m fix models
+* [33m74be82e[m[33m ([m[1;36mHEAD -> [m[1;32mmaster[m[33m, [m[1;31morigin/master[m[33m, [m[1;31morigin/HEAD[m[33m)[m update model
+* [33m9f10677[m update model
+*   [33m17d4aad[m Merge pull request #2 from dinhieufam/duyanhnguyenvan
+[32m|[m[33m\[m  
+[32m|[m * [33m52c2d45[m[33m ([m[1;31morigin/duyanhnguyenvan[m[33m)[m Update Risk.py
+[32m|[m * [33mb95035d[m Include LLMs
+[32m|[m[32m/[m  
+* [33m0378e9d[m fix dashboard
+* [33mb55a583[m fix models
+* [33m139c734[m our code
+*   [33m5c4ac23[m Merge pull request #1 from dinhieufam/minh_dang
+[34m|[m[35m\[m  
+[34m|[m * [33m3a5b3e6[m our code
+[34m|[m[34m/[m  
+* [33m5a07591[m fixing md
+* [33me6a0690[m Cursor
+* [33m0362d39[m first commits
+* [33mb9d3c97[m Update Documents
+[35m|[m * [33mdd9c352[m[33m ([m[1;31morigin/trumai[m[33m)[m update fe v0
+[35m|[m * [33mf624ae4[m[33m ([m[1;31morigin/dinhieufam[m[33m)[m Format Landing Page
+[35m|[m * [33m94404e8[m Add NextJS template
+[35m|[m *   [33m8ad8716[m Merge pull request #2 from dinhieufam/duyanhnguyenvan
+[35m|[m [1;31m|[m[1;32m\[m  
+[35m|[m [1;31m|[m * [33m14c4be5[m Update Risk.py
+[35m|[m [1;31m|[m * [33meefedd2[m Include LLMs
+[35m|[m [1;31m|[m[1;31m/[m  
+[35m|[m * [33mb890633[m fix dashboard
+[35m|[m * [33mddc50be[m fix models
+[35m|[m * [33m36e70be[m our code
+[35m|[m *   [33m8df64ce[m Merge pull request #1 from dinhieufam/minh_dang
+[35m|[m [1;33m|[m[1;34m\[m  
+[35m|[m [1;33m|[m * [33m0d118f8[m our code
+[35m|[m [1;33m|[m[1;33m/[m  
+[35m|[m * [33mc660398[m fixing md
+[35m|[m * [33mc770ffb[m Cursor
+[35m|[m * [33m86ca695[m first commits
+[35m|[m * [33m30d2bb7[m Update Documents
+[35m|[m * [33mc6e3603[m Initial commit
+[35m|[m * [33m31456ea[m[33m ([m[1;31morigin/chun[m[33m)[m update chun
+[35m|[m[35m/[m  
+* [33m115fe50[m Initial commit
