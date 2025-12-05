@@ -125,8 +125,8 @@ chun/
 *.venv
 
 # Old/duplicate directories (if they exist)
-backend/
-frontend/
+/backend/
+/frontend/
 
 # MacOS
 .DS_Store
