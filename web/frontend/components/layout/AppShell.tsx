@@ -3,22 +3,19 @@ import type { ReactNode } from "react";
 
 type Props = {
   children: ReactNode;
+  sidebarContent?: ReactNode;
 };
 
-const navItems = [
-  { href: "/dashboard", label: "Overview" },
-  { href: "/dashboard#portfolio", label: "Portfolio" },
-  { href: "/dashboard#risk", label: "Risk" },
-  { href: "/dashboard#backtest", label: "Backtesting" },
-  { href: "/dashboard#metrics", label: "Metrics" },
-];
+export function AppShell({ children, sidebarContent }: Props) {
+  const sidebarWidth = sidebarContent ? "w-72" : "w-56";
 
-export function AppShell({ children }: Props) {
   return (
     <div className="finlove-gradient-bg min-h-screen">
       <div className="mx-auto flex min-h-screen max-w-6xl gap-6 px-4 py-5 sm:px-6 lg:px-8">
         {/* Sidebar */}
-        <aside className="hidden w-56 shrink-0 flex-col justify-between rounded-2xl border border-slate-800/80 bg-slate-950/80 px-4 py-5 shadow-soft-elevated md:flex">
+        <aside
+          className={`hidden ${sidebarWidth} shrink-0 flex-col justify-between rounded-2xl border border-slate-800/80 bg-slate-950/80 px-4 py-5 shadow-soft-elevated md:flex`}
+        >
           <div className="space-y-6">
             <Link href="/" className="flex items-center gap-2">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/20 ring-1 ring-emerald-400/40">
@@ -31,18 +28,22 @@ export function AppShell({ children }: Props) {
                 </p>
               </div>
             </Link>
-            <nav className="space-y-1 text-sm">
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  className="flex items-center justify-between rounded-xl px-3 py-2 text-slate-300 transition hover:bg-slate-800/70 hover:text-slate-50"
-                >
-                  <span>{item.label}</span>
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/70" />
-                </Link>
-              ))}
-            </nav>
+            {sidebarContent ? (
+              <div className="space-y-5">{sidebarContent}</div>
+            ) : (
+              <nav className="space-y-1 text-sm">
+                {navItems.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="flex items-center justify-between rounded-xl px-3 py-2 text-slate-300 transition hover:bg-slate-800/70 hover:text-slate-50"
+                  >
+                    <span>{item.label}</span>
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-400/70" />
+                  </Link>
+                ))}
+              </nav>
+            )}
           </div>
           <div className="space-y-2 border-t border-slate-800/70 pt-3 text-[11px] text-slate-400">
             <p className="font-medium text-slate-300">Session profile</p>

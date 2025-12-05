@@ -1,15 +1,15 @@
-import os
 import sys
+from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
 
-# Ensure the shared engine package (`src`) is importable when running the backend
-# portfolio.py is at web/backend/routers/portfolio.py, so we need to go up 3 levels to project root
-PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-if PROJECT_ROOT not in sys.path:
-    sys.path.insert(0, PROJECT_ROOT)
+# Ensure we load the bundled engine code inside this web/backend folder.
+# Add the backend root to sys.path so `src` is importable as a package.
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
 
 from src.backtest import simple_backtest, walk_forward_backtest  # type: ignore
 from src.data import prepare_portfolio_data  # type: ignore
