@@ -166,3 +166,4 @@ logs/
 *.temp
 .cache/
 
+FinLove_env/
