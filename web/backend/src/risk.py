@@ -72,6 +72,10 @@ def glasso_covariance(returns: pd.DataFrame, alpha: Optional[float] = None) -> p
     Returns:
         GLASSO covariance matrix as DataFrame
     """
+    # Fallback to sample covariance for single asset
+    if returns.shape[1] < 2:
+        return sample_covariance(returns)
+
     if alpha is None:
         # Use cross-validation to select alpha
         model = GraphicalLassoCV(cv=5, max_iter=500)
