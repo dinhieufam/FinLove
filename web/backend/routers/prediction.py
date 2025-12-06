@@ -1,6 +1,7 @@
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
+from pydantic import Field
 
 from fastapi import APIRouter
 from pydantic import BaseModel, Field
@@ -59,9 +60,10 @@ class PredictionRequest(BaseModel):
         le=20.0,
         description="Risk aversion parameter for Markowitz-style optimizations."
     )
-    forecast_method: Literal["ensemble", "arima", "ma", "exponential_smoothing"] = Field(
-        default="ensemble",
-        description="Forecasting method for portfolio returns."
+    # forecast_method is ignored - always uses SARIMAX with fixed parameters (p=1,d=1,q=1,P=1,D=1,Q=1,seasonal_period=5)
+    forecast_method: Optional[str] = Field(
+        default=None,
+        description="Deprecated: Always uses SARIMAX. This field is ignored."
     )
 
 def _series_to_payload(series) -> Dict[str, Any]:
@@ -150,22 +152,41 @@ async def predict_portfolio(payload: PredictionRequest) -> dict:
         # Get full historical cumulative returns for chart (from start_date to end_date)
         historical_cumulative = (1 + portfolio_returns).cumprod()
         
-        # Forecast future portfolio returns using the configured forecast method
-        # The forecast will automatically start from the day after end_date
-        if payload.forecast_method == 'ensemble':
-            forecast_result = ensemble_forecast(
+        # Forecast future portfolio returns using SARIMAX with fixed parameters
+        # Order: (p=1, d=1, q=1), Seasonal: (P=1, D=1, Q=1, seasonal_period=5)
+        from statsmodels.tsa.statespace.sarimax import SARIMAX
+        
+        try:
+            # Fit SARIMAX model with specified parameters
+            model = SARIMAX(
                 portfolio_returns,
-                methods=['arima', 'exponential_smoothing', 'ma'],
-                forecast_horizon=payload.forecast_horizon
+                order=(1, 1, 1),
+                seasonal_order=(1, 1, 1, 5),
+                enforce_stationarity=False,
+                enforce_invertibility=False
             )
-            forecast_returns = forecast_result['ensemble_forecast']
-        else:
-            forecast_result = forecast_portfolio_returns(
-                portfolio_returns,
-                method=payload.forecast_method,
-                forecast_horizon=payload.forecast_horizon
+            fitted = model.fit(disp=False)
+            
+            # Forecast
+            forecast = fitted.forecast(steps=payload.forecast_horizon)
+            
+            # Create forecast dates starting from day after end_date
+            forecast_start = end_dt + pd.Timedelta(days=1)
+            forecast_dates = pd.date_range(
+                start=forecast_start,
+                periods=payload.forecast_horizon,
+                freq='D'
             )
-            forecast_returns = forecast_result['forecast']
+            
+            forecast_returns = pd.Series(forecast.values, index=forecast_dates)
+            
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            return {
+                "ok": False,
+                "error": f"SARIMAX forecast failed: {str(e)}"
+            }
         
         # Ensure forecast dates start from the day after end_date
         # The forecast functions should already do this, but let's verify

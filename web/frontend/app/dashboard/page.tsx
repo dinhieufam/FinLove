@@ -230,7 +230,6 @@ export default function DashboardPage() {
 
   // Prediction State
   const [predHorizon, setPredHorizon] = useState(30);
-  const [predForecastMethod, setPredForecastMethod] = useState("ensemble");
   const [predLoading, setPredLoading] = useState(false);
   const [predError, setPredError] = useState<string | null>(null);
   const [predData, setPredData] = useState<PredictionResponse | null>(null);
@@ -394,8 +393,8 @@ export default function DashboardPage() {
         forecast_horizon: predHorizon,
         optimization_method: optimizationMethod,
         risk_model: riskModel,
-        risk_aversion: riskAversion,
-        forecast_method: predForecastMethod
+        risk_aversion: riskAversion
+        // forecast_method removed - backend now always uses SARIMAX
       };
 
       const res = await fetch("http://localhost:8000/api/portfolio/predict", {
@@ -597,14 +596,7 @@ export default function DashboardPage() {
             <input type="number" value={predHorizon} onChange={(e) => setPredHorizon(parseInt(e.target.value))} className="w-full rounded-lg border border-slate-700/60 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400/60" />
           </div>
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-slate-300">Forecast Method</label>
-            <select value={predForecastMethod} onChange={(e) => setPredForecastMethod(e.target.value)} className="w-full rounded-lg border border-slate-700/60 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400/60">
-              <option value="ensemble">Ensemble (ARIMA, Exponential Smoothing, MA)</option>
-              <option value="arima">ARIMA</option>
-              <option value="exponential_smoothing">Exponential Smoothing</option>
-              <option value="ma">Moving Average</option>
-            </select>
-            <p className="text-xs text-slate-400 mt-1">Uses portfolio strategy from config (Risk Model & Optimization)</p>
+            <p className="text-xs text-slate-400">Uses SARIMAX model with portfolio strategy from config (Risk Model & Optimization)</p>
           </div>
           <button
             onClick={handleRunPrediction}
