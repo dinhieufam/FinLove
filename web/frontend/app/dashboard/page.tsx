@@ -3,6 +3,8 @@
 import React, { useMemo, useState } from "react";
 import { AppShell } from "@components/layout/AppShell";
 import { StatCard } from "@components/ui/StatCard";
+import { Heatmap } from "@components/ui/Heatmap";
+import { AssetCard } from "@components/ui/AssetCard";
 import {
   Line,
   LineChart,
@@ -24,6 +26,39 @@ import {
 type TimeSeriesPayload = {
   dates: string[];
   values: number[];
+};
+
+type AssetMetrics = {
+  total_return: number;
+  volatility: number;
+  sharpe: number;
+};
+
+type AssetData = {
+  metrics: AssetMetrics;
+  cumulative: TimeSeriesPayload;
+  drawdown: TimeSeriesPayload;
+  rolling_sharpe: TimeSeriesPayload;
+};
+
+type CompanyInfo = {
+  symbol: string;
+  name: string;
+  sector?: string;
+  market_cap?: number;
+  pe_ratio?: number;
+  beta?: number;
+};
+
+type RiskMatrices = {
+  covariance: {
+    labels: string[];
+    matrix: number[][];
+  };
+  correlation: {
+    labels: string[];
+    matrix: number[][];
+  };
 };
 
 type AnalyzeResponse = {
@@ -57,11 +92,28 @@ type AnalyzeResponse = {
       matrix: number[][];
     };
   };
+  // New Fields
+  risk_matrices?: RiskMatrices;
+  company_info?: CompanyInfo[];
+  assets_analysis?: Record<string, AssetData>;
+  assets_returns?: Record<string, number[]>;
+};
+
+type ModelPrediction = {
+  forecast: TimeSeriesPayload;
+  volatility: TimeSeriesPayload;
+  metrics: {
+    cumulative_return: number;
+    volatility: number;
+    mean_return: number;
+  };
 };
 
 type PredictionResponse = {
   ok: boolean;
   error?: string;
+  mode?: "portfolio" | "all";
+  // Portfolio Mode Fields
   series?: {
     historical: TimeSeriesPayload;
     forecast: TimeSeriesPayload;
@@ -76,8 +128,9 @@ type PredictionResponse = {
     annualized_return: number;
     annualized_volatility: number;
   }[];
+  // All Mode Fields
+  predictions?: Record<string, Record<string, ModelPrediction | null>>;
   forecast_horizon?: number;
-  forecast_method?: string; // Which forecasting method was used (xgboost, lstm, etc.)
 };
 
 function toChartData(series?: TimeSeriesPayload) {
@@ -89,6 +142,12 @@ function toChartData(series?: TimeSeriesPayload) {
 }
 
 const COLORS = ['#34d399', '#60a5fa', '#f472b6', '#fbbf24', '#a78bfa', '#2dd4bf', '#fb7185', '#94a3b8'];
+const MODEL_COLORS: Record<string, string> = {
+  lstm: '#d62728', // Red
+  tcn: '#2ca02c', // Green
+  xgboost: '#ff7f0e', // Orange
+  transformer: '#9467bd' // Purple
+};
 
 export default function DashboardPage() {
   // General State
@@ -110,7 +169,7 @@ export default function DashboardPage() {
 
   // Prediction State
   const [predHorizon, setPredHorizon] = useState(30);
-  const [predModel, setPredModel] = useState("ensemble");
+  const [predModel, setPredModel] = useState("all"); // Default to 'all' for multi-model view
   const [predLoading, setPredLoading] = useState(false);
   const [predError, setPredError] = useState<string | null>(null);
   const [predData, setPredData] = useState<PredictionResponse | null>(null);
@@ -148,12 +207,35 @@ export default function DashboardPage() {
       }));
   }, [data, investmentAmount]);
 
-  const predictionSeries = useMemo<{ hist: { date: string; value: number }[]; fore: { date: string; value: number }[] } | null>(() => {
-    if (!predData?.series) return null;
+  const predictionSeries = useMemo(() => {
+    if (!predData?.series) return { hist: [], fore: [] };
     const hist = toChartData(predData.series.historical);
     const fore = toChartData(predData.series.forecast);
     return { hist, fore };
   }, [predData]);
+
+  // Histogram Data
+  const histogramData = useMemo(() => {
+    if (!data?.series?.returns) return [];
+    const returns = data.series.returns.values.map(v => v * 100); // Convert to %
+    const min = Math.min(...returns);
+    const max = Math.max(...returns);
+    const bins = 40;
+    const step = (max - min) / bins;
+
+    const hist = new Array(bins).fill(0);
+    const binLabels = new Array(bins).fill(0);
+
+    returns.forEach(val => {
+      const binIdx = Math.min(Math.floor((val - min) / step), bins - 1);
+      hist[binIdx]++;
+    });
+
+    return hist.map((count, i) => ({
+      bin: (min + i * step).toFixed(1) + '%',
+      count
+    }));
+  }, [data]);
 
   // Handlers
   const handleRunAnalysis = async () => {
@@ -323,15 +405,10 @@ export default function DashboardPage() {
           <div className="space-y-2">
             <label className="block text-xs font-medium text-slate-300">Model</label>
             <select value={predModel} onChange={(e) => setPredModel(e.target.value)} className="w-full rounded-lg border border-slate-700/60 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400/60">
-              <option value="ensemble">Ensemble (Recommended)</option>
-              <option value="arima">ARIMA</option>
-              <option value="prophet">Prophet</option>
+              <option value="all">Run All Models (Comparison)</option>
+              <option value="ensemble">Ensemble (Best)</option>
               <option value="lstm">LSTM</option>
-              <option value="tcn">TCN (Temporal CNN)</option>
-              <option value="xgboost">XGBoost</option>
-              <option value="transformer">Transformer</option>
-              <option value="ma">Moving Average</option>
-              <option value="exponential_smoothing">Exponential Smoothing</option>
+              <option value="arima">ARIMA</option>
             </select>
           </div>
           <button
@@ -471,6 +548,33 @@ export default function DashboardPage() {
                   </div>
                 </div>
 
+                {/* Detailed Metrics Table */}
+                <div className="finlove-card p-6">
+                  <h3 className="mb-4 text-lg font-semibold">Detailed Metrics</h3>
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm text-left">
+                      <thead className="text-xs text-slate-400 uppercase bg-slate-900/50">
+                        <tr>
+                          <th className="px-4 py-3">Metric</th>
+                          <th className="px-4 py-3">Value</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {metrics && Object.entries(metrics).map(([key, value]) => (
+                          <tr key={key} className="border-b border-slate-800/50 hover:bg-slate-800/30">
+                            <td className="px-4 py-3 font-medium capitalize">{key.replace(/_/g, ' ')}</td>
+                            <td className="px-4 py-3">
+                              {key.includes('ratio') ? value.toFixed(3) :
+                                key.includes('stability') ? value.toFixed(3) :
+                                  `${(value * 100).toFixed(2)}%`}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
                 <div className="grid gap-6 md:grid-cols-2">
                   <div className="finlove-card p-6">
                     <h3 className="mb-4 text-lg font-semibold">Drawdown</h3>
@@ -501,6 +605,88 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 </div>
+
+                {/* Risk Matrices */}
+                {data.risk_matrices && (
+                  <div className="grid gap-6 md:grid-cols-2">
+                    <Heatmap
+                      title="Correlation Matrix"
+                      data={data.risk_matrices.correlation.matrix}
+                      labels={data.risk_matrices.correlation.labels}
+                      colorScale="diverging"
+                    />
+                    <Heatmap
+                      title="Covariance Matrix"
+                      data={data.risk_matrices.covariance.matrix}
+                      labels={data.risk_matrices.covariance.labels}
+                      colorScale="red"
+                    />
+                  </div>
+                )}
+
+                {/* Return Distribution */}
+                <div className="finlove-card p-6">
+                  <h3 className="mb-4 text-lg font-semibold">Return Distribution</h3>
+                  <div className="h-48">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <BarChart data={histogramData}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                        <XAxis dataKey="bin" tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                        <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                        <Tooltip contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155" }} />
+                        <Bar dataKey="count" fill="#34d399" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+
+                {/* Per-Asset Performance Table */}
+                {data.assets_analysis && (
+                  <div className="finlove-card p-6">
+                    <h3 className="mb-4 text-lg font-semibold">Per-Asset Performance</h3>
+                    <div className="overflow-x-auto">
+                      <table className="w-full text-sm text-left">
+                        <thead className="text-xs text-slate-400 uppercase bg-slate-900/50">
+                          <tr>
+                            <th className="px-4 py-3">Asset</th>
+                            <th className="px-4 py-3">Total Return</th>
+                            <th className="px-4 py-3">Volatility</th>
+                            <th className="px-4 py-3">Sharpe</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {Object.entries(data.assets_analysis).map(([ticker, assetData]) => (
+                            <tr key={ticker} className="border-b border-slate-800/50 hover:bg-slate-800/30">
+                              <td className="px-4 py-3 font-medium">{ticker}</td>
+                              <td className={`px-4 py-3 ${assetData.metrics.total_return >= 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                                {(assetData.metrics.total_return * 100).toFixed(2)}%
+                              </td>
+                              <td className="px-4 py-3">{(assetData.metrics.volatility * 100).toFixed(2)}%</td>
+                              <td className="px-4 py-3">{assetData.metrics.sharpe.toFixed(2)}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                )}
+
+                {/* Asset Deep Dive */}
+                {data.assets_analysis && (
+                  <div>
+                    <h3 className="mb-4 text-xl font-bold">Asset Deep Dive</h3>
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      {Object.entries(data.assets_analysis).map(([ticker, assetData]) => (
+                        <AssetCard
+                          key={ticker}
+                          ticker={ticker}
+                          data={assetData}
+                          info={data.company_info?.find(c => c.symbol === ticker)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
               </>
             )}
           </div>
@@ -515,68 +701,140 @@ export default function DashboardPage() {
               </div>
             ) : (
               <>
-                <div className="grid gap-4 sm:grid-cols-3">
-                  <StatCard label="Exp. Daily Return" value={`${(predData.metrics?.expected_daily_return! * 100).toFixed(3)}%`} tone="positive" />
-                  <StatCard label="Forecast Volatility" value={`${(predData.metrics?.forecast_volatility! * 100).toFixed(2)}%`} tone="neutral" />
-                  <StatCard label="Horizon" value={`${predData.forecast_horizon} Days`} tone="neutral" />
-                </div>
+                {/* Portfolio Mode View */}
+                {predData.mode === 'portfolio' && (
+                  <>
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <StatCard label="Exp. Daily Return" value={`${(predData.metrics?.expected_daily_return! * 100).toFixed(3)}%`} tone="positive" />
+                      <StatCard label="Forecast Volatility" value={`${(predData.metrics?.forecast_volatility! * 100).toFixed(2)}%`} tone="neutral" />
+                      <StatCard label="Horizon" value={`${predData.forecast_horizon} Days`} tone="neutral" />
+                    </div>
 
-                <div className="finlove-card p-6">
-                  <h3 className="mb-4 text-lg font-semibold">Forecast Trajectory</h3>
-                  <div className="h-72">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart>
-                        <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                        <XAxis dataKey="date" type="category" allowDuplicatedCategory={false} tick={{ fontSize: 11, fill: "#94a3b8" }} />
-                        <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => v.toFixed(2)} />
-                        <Tooltip contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155" }} />
-                        {predictionSeries && (
-                          <>
+                    <div className="finlove-card p-6">
+                      <h3 className="mb-4 text-lg font-semibold">Forecast Trajectory</h3>
+                      <div className="h-72">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <LineChart>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                            <XAxis dataKey="date" type="category" allowDuplicatedCategory={false} tick={{ fontSize: 11, fill: "#94a3b8" }} />
+                            <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => v.toFixed(2)} />
+                            <Tooltip contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155" }} />
                             <Line data={predictionSeries.hist} type="monotone" dataKey="value" stroke="#34d399" strokeWidth={2} dot={false} name="Historical" />
                             <Line data={predictionSeries.fore} type="monotone" dataKey="value" stroke="#f472b6" strokeWidth={2} strokeDasharray="5 5" dot={false} name="Forecast" />
-                          </>
-                        )}
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </div>
+                          </LineChart>
+                        </ResponsiveContainer>
+                      </div>
+                    </div>
 
-                {predData.top_models && (
-                  <div className="finlove-card p-6">
-                    <div className="mb-4 flex items-center justify-between">
-                      <h3 className="text-lg font-semibold">Top Portfolio Models</h3>
-                      {predData.forecast_method && (
-                        <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-400">
-                          Forecasted with: {predData.forecast_method.toUpperCase()}
-                        </span>
-                      )}
+                    {predData.top_models && (
+                      <div className="finlove-card p-6">
+                        <h3 className="mb-4 text-lg font-semibold">Top Performing Models</h3>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-sm text-left">
+                            <thead className="text-xs text-slate-400 uppercase bg-slate-900/50">
+                              <tr>
+                                <th className="px-4 py-3">Model</th>
+                                <th className="px-4 py-3">Sharpe</th>
+                                <th className="px-4 py-3">Return</th>
+                                <th className="px-4 py-3">Volatility</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {predData.top_models.map((m) => (
+                                <tr key={m.model_id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
+                                  <td className="px-4 py-3 font-medium">{m.model_id}</td>
+                                  <td className="px-4 py-3">{m.sharpe_ratio.toFixed(2)}</td>
+                                  <td className="px-4 py-3 text-emerald-400">{(m.annualized_return * 100).toFixed(1)}%</td>
+                                  <td className="px-4 py-3">{(m.annualized_volatility * 100).toFixed(1)}%</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+
+                {/* Multi-Model (All) Mode View */}
+                {predData.mode === 'all' && predData.predictions && (
+                  <div className="space-y-8">
+                    <div className="finlove-card p-6 bg-slate-900/50 border-emerald-500/20">
+                      <h3 className="text-xl font-bold text-emerald-400 mb-2">Multi-Model Analysis</h3>
+                      <p className="text-slate-400">Comparing LSTM, TCN, XGBoost, and Transformer forecasts for each asset.</p>
                     </div>
-                    <p className="mb-4 text-xs text-slate-400">
-                      These are the top-performing portfolio optimization models (selected by Sharpe ratio). 
-                      Each model's historical returns were forecasted using the {predData.forecast_method || 'selected'} method.
-                    </p>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm text-left">
-                        <thead className="text-xs text-slate-400 uppercase bg-slate-900/50">
-                          <tr>
-                            <th className="px-4 py-3">Portfolio Model</th>
-                            <th className="px-4 py-3">Sharpe</th>
-                            <th className="px-4 py-3">Return</th>
-                            <th className="px-4 py-3">Volatility</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {predData.top_models.map((m) => (
-                            <tr key={m.model_id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
-                              <td className="px-4 py-3 font-medium">{m.model_id}</td>
-                              <td className="px-4 py-3">{m.sharpe_ratio.toFixed(2)}</td>
-                              <td className="px-4 py-3 text-emerald-400">{(m.annualized_return * 100).toFixed(1)}%</td>
-                              <td className="px-4 py-3">{(m.annualized_volatility * 100).toFixed(1)}%</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+
+                    {Object.entries(predData.predictions).map(([ticker, models]) => (
+                      <div key={ticker} className="finlove-card p-6">
+                        <div className="flex items-center justify-between mb-6">
+                          <h3 className="text-xl font-bold">{ticker}</h3>
+                          <span className="text-sm text-slate-500">Forecast Horizon: {predData.forecast_horizon} Days</span>
+                        </div>
+
+                        <div className="grid gap-6 lg:grid-cols-2">
+                          {/* Future Cumulative Returns */}
+                          <div>
+                            <h4 className="mb-4 text-sm font-semibold text-slate-300">Future Cumulative Returns</h4>
+                            <div className="h-64">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <LineChart>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                                  <XAxis dataKey="date" hide />
+                                  <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                                  <Tooltip contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155" }} />
+                                  <Legend />
+                                  {Object.entries(models).map(([modelName, prediction]) => (
+                                    prediction && (
+                                      <Line
+                                        key={modelName}
+                                        data={toChartData(prediction.forecast)}
+                                        type="monotone"
+                                        dataKey="value"
+                                        name={modelName.toUpperCase()}
+                                        stroke={MODEL_COLORS[modelName] || '#fff'}
+                                        strokeWidth={2}
+                                        dot={false}
+                                      />
+                                    )
+                                  ))}
+                                </LineChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+
+                          {/* Volatility Outlook */}
+                          <div>
+                            <h4 className="mb-4 text-sm font-semibold text-slate-300">Volatility Outlook</h4>
+                            <div className="h-64">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <LineChart>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                                  <XAxis dataKey="date" hide />
+                                  <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} />
+                                  <Tooltip contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155" }} />
+                                  <Legend />
+                                  {Object.entries(models).map(([modelName, prediction]) => (
+                                    prediction && (
+                                      <Line
+                                        key={modelName}
+                                        data={toChartData(prediction.volatility)}
+                                        type="monotone"
+                                        dataKey="value"
+                                        name={modelName.toUpperCase()}
+                                        stroke={MODEL_COLORS[modelName] || '#fff'}
+                                        strokeWidth={2}
+                                        dot={false}
+                                        strokeDasharray="3 3"
+                                      />
+                                    )
+                                  ))}
+                                </LineChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 )}
               </>
