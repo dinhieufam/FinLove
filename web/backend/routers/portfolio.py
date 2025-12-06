@@ -387,6 +387,16 @@ async def analyze_portfolio(payload: BacktestRequest) -> dict:
         asset_returns_payload[ticker] = [float(x) for x in returns[ticker].dropna().values]
     response["assets_returns"] = asset_returns_payload
 
+    # Store portfolio in RAG system for Q&A (async, don't block response)
+    try:
+        from src.rag_system import get_rag_system
+        rag_system = get_rag_system()
+        portfolio_id = rag_system.store_portfolio(response)
+        response["portfolio_id"] = portfolio_id  # Include portfolio ID in response
+    except Exception as e:
+        print(f"Warning: Failed to store portfolio in RAG system: {e}")
+        # Don't fail the request if RAG storage fails
+
     return response
 
 

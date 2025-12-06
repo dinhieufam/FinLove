@@ -5,6 +5,7 @@ import { AppShell } from "@components/layout/AppShell";
 import { StatCard } from "@components/ui/StatCard";
 import { Heatmap } from "@components/ui/Heatmap";
 import { AssetCard } from "@components/ui/AssetCard";
+import { ChatBot } from "@components/ui/ChatBot";
 import {
   Line,
   LineChart,
@@ -933,6 +934,15 @@ export default function DashboardPage() {
           </div>
         )}
       </div>
+      <ChatBot
+        portfolioData={{
+          optimizationMethod: optimizationMethod,
+          riskModel: riskModel,
+          metrics: data?.metrics,
+          tickers: selectedTickers,
+          portfolio_id: (data as any)?.portfolio_id,
+        }}
+      />
     </AppShell>
   );
 }
