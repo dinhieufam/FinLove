@@ -16,6 +16,11 @@ import plotly.express as px
 from datetime import datetime, timedelta
 import sys
 import os
+import sys
+
+# Suppress TensorFlow/CUDA warnings
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
 import math
 
 # Add project root to path
