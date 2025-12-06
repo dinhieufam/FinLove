@@ -9,10 +9,15 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.556.0",
     "next": "15.0.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "recharts": "^2.12.7"
+    "recharts": "^2.12.7",
+    "tailwind-merge": "^3.4.0",
+    "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
@@ -25,5 +30,3 @@
     "typescript": "^5.5.0"
   }
 }
-
-

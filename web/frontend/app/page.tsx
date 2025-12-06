@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { Marquee } from "@components/ui/marquee";
 
 export default function LandingPage() {
   const scrollToSection = (id: string) => {
@@ -21,7 +22,7 @@ export default function LandingPage() {
             </div>
             <div>
               <p className="text-sm font-semibold tracking-tight">FinLove</p>
-              <p className="text-[11px] text-slate-400">Risk-Aware Portfolio Lab</p>
+              <p className="text-[11px] text-slate-400">Smart Portfolio Lab</p>
             </div>
           </Link>
           <div className="hidden items-center gap-6 md:flex">
@@ -70,25 +71,25 @@ export default function LandingPage() {
         <div className="mx-auto flex max-w-6xl flex-col gap-10 lg:flex-row lg:items-center">
           {/* Left: hero content */}
           <div className="max-w-xl space-y-6">
-            <span className="finlove-pill">Risk-aware Quant Portfolio Platform</span>
+            <span className="finlove-pill">Smart Investing Made Simple</span>
             <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
               FinLove:
-              <span className="bg-gradient-to-r from-emerald-300 to-cyan-300 bg-clip-text text-transparent">
+              <span className="inline-block bg-gradient-to-r from-emerald-300 to-cyan-300 bg-clip-text text-transparent">
                 {" "}
-                build portfolios you can trust.
+                invest with confidence.
               </span>
             </h1>
             <p className="finlove-subtle">
-              Combine advanced risk models, robust optimization, and realistic
-              backtesting to design stable portfolios across regimes. Powered by
-              Ledoit-Wolf, GLASSO, GARCH, DCC and more.
+              Build stable, safer portfolios without needing a PhD in finance.
+              We use advanced technology to help you balance risk and return,
+              so you can sleep easier at night.
             </p>
             <div className="flex flex-wrap items-center gap-3">
               <Link
                 href="/dashboard"
                 className="inline-flex items-center justify-center rounded-xl bg-emerald-500 px-6 py-2.5 text-sm font-medium text-slate-950 shadow-md transition hover:bg-emerald-400"
               >
-                Launch Portfolio Studio
+                Start Building
               </Link>
               <a
                 href="https://github.com/dinhieufam/FinLove"
@@ -101,16 +102,16 @@ export default function LandingPage() {
             </div>
             <div className="mt-4 grid gap-3 text-xs text-slate-300 sm:grid-cols-3">
               <div>
-                <p className="font-semibold text-slate-100">Risk Models</p>
-                <p>Ledoit-Wolf, GLASSO, GARCH, DCC.</p>
+                <p className="font-semibold text-slate-100">Smart Analysis</p>
+                <p>Filters out market noise to find true trends.</p>
               </div>
               <div>
-                <p className="font-semibold text-slate-100">Optimization</p>
-                <p>Markowitz, Black-Litterman, CVaR, Sharpe.</p>
+                <p className="font-semibold text-slate-100">Portfolio Balance</p>
+                <p>Optimizes for safety, growth, or efficiency.</p>
               </div>
               <div>
-                <p className="font-semibold text-slate-100">Backtesting</p>
-                <p>Walk-forward with costs and rebalance bands.</p>
+                <p className="font-semibold text-slate-100">History Testing</p>
+                <p>See how your strategy would have performed.</p>
               </div>
             </div>
           </div>
@@ -125,20 +126,20 @@ export default function LandingPage() {
                     Strategy snapshot
                   </p>
                   <p className="mt-1 text-sm text-slate-300">
-                    Example walk-forward backtest vs. equal-weight benchmark.
+                    Example performance vs. standard market benchmark.
                   </p>
                 </div>
                 <div className="text-right text-xs text-slate-400">
                   <p>Universe: Sector ETFs</p>
-                  <p>Risk model: Ledoit-Wolf</p>
-                  <p>Method: Markowitz</p>
+                  <p>Goal: Max Efficiency</p>
+                  <p>Risk Level: Balanced</p>
                 </div>
               </div>
 
               <div className="mt-5 grid gap-4 sm:grid-cols-3">
                 <div>
                   <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">
-                    Cumulative return
+                    Total Return
                   </p>
                   <p className="mt-1 text-xl font-semibold text-emerald-400">
                     +142.7%
@@ -149,7 +150,7 @@ export default function LandingPage() {
                 </div>
                 <div>
                   <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">
-                    Max drawdown
+                    Worst Drop
                   </p>
                   <p className="mt-1 text-xl font-semibold text-emerald-300">
                     -16.4%
@@ -160,23 +161,22 @@ export default function LandingPage() {
                 </div>
                 <div>
                   <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-slate-400">
-                    Sharpe ratio
+                    Efficiency Score
                   </p>
                   <p className="mt-1 text-xl font-semibold text-emerald-400">
                     1.46
                   </p>
                   <p className="mt-1 text-[11px] text-slate-400">
-                    252-day rolling, rf ≈ 0%
+                    Higher is better
                   </p>
                 </div>
               </div>
 
               <div className="mt-5 flex items-center justify-between border-t border-slate-800/70 pt-3 text-[11px] text-slate-400">
                 <p>
-                  Daily data from Yahoo Finance via{" "}
-                  <span className="font-medium text-slate-200">yfinance</span>.
+                  Daily data from trusted sources.
                 </p>
-                <p>Built for research and education purposes.</p>
+                <p>Built for everyone.</p>
               </div>
             </div>
           </div>
@@ -188,11 +188,10 @@ export default function LandingPage() {
         <div className="mx-auto max-w-6xl">
           <div className="mb-12 text-center">
             <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-              About <span className="bg-gradient-to-r from-emerald-300 to-cyan-300 bg-clip-text text-transparent">FinLove</span>
+              About <span className="inline-block bg-gradient-to-r from-emerald-300 to-cyan-300 bg-clip-text text-transparent">FinLove</span>
             </h2>
             <p className="mt-4 text-slate-400 max-w-2xl mx-auto">
-              A comprehensive Python-based portfolio construction engine designed for researchers, 
-              students, and practitioners who need robust risk-aware portfolio optimization.
+              A powerful tool designed to help you build smarter, safer investment portfolios.
             </p>
           </div>
           <div className="grid gap-6 md:grid-cols-2">
@@ -200,33 +199,32 @@ export default function LandingPage() {
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/20 ring-1 ring-emerald-400/40">
                 <span className="text-2xl">🎯</span>
               </div>
-              <h3 className="mb-2 text-lg font-semibold text-slate-100">Mission</h3>
+              <h3 className="mb-2 text-lg font-semibold text-slate-100">Our Mission</h3>
               <p className="text-sm text-slate-300">
-                FinLove combines advanced risk models, optimization methods, and execution realism 
-                to create stable, risk-aware portfolios. Our goal is to make sophisticated portfolio 
-                construction accessible to everyone.
+                We believe professional-grade investment tools shouldn't be reserved for
+                Wall Street. FinLove combines advanced technology with a simple interface
+                to help anyone create stable, risk-aware portfolios.
               </p>
             </div>
             <div className="finlove-card p-6">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/20 ring-1 ring-emerald-400/40">
-                <span className="text-2xl">🔬</span>
+                <span className="text-2xl">🎓</span>
               </div>
-              <h3 className="mb-2 text-lg font-semibold text-slate-100">Research-Focused</h3>
+              <h3 className="mb-2 text-lg font-semibold text-slate-100">Learn Investing</h3>
               <p className="text-sm text-slate-300">
-                Built for research and education purposes, FinLove provides a comprehensive 
-                toolkit for exploring different risk models, optimization strategies, and 
-                backtesting methodologies in a realistic environment.
+                Whether you're a student or just starting out, FinLove provides a
+                sandbox to explore different strategies. See how different choices
+                affect your risk and return in a safe environment.
               </p>
             </div>
             <div className="finlove-card p-6">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-emerald-500/20 ring-1 ring-emerald-400/40">
                 <span className="text-2xl">⚡</span>
               </div>
-              <h3 className="mb-2 text-lg font-semibold text-slate-100">Performance</h3>
+              <h3 className="mb-2 text-lg font-semibold text-slate-100">Fast & Easy</h3>
               <p className="text-sm text-slate-300">
-                With automatic data caching and optimized algorithms, FinLove delivers fast 
-                performance even with large portfolios and extended time periods. Pre-download 
-                data for even faster analysis.
+                No coding required. Our platform handles all the complex calculations
+                instantly, so you can focus on making the right decisions for your money.
               </p>
             </div>
             <div className="finlove-card p-6">
@@ -235,8 +233,8 @@ export default function LandingPage() {
               </div>
               <h3 className="mb-2 text-lg font-semibold text-slate-100">Interactive Dashboard</h3>
               <p className="text-sm text-slate-300">
-                Our Streamlit dashboard provides an intuitive interface for portfolio analysis, 
-                visualization, and exploration. No coding required to get started.
+                Visualize your portfolio's potential. Our intuitive dashboard shows you
+                exactly what's happening with clear charts and simple metrics.
               </p>
             </div>
           </div>
@@ -248,43 +246,43 @@ export default function LandingPage() {
         <div className="mx-auto max-w-6xl">
           <div className="mb-12 text-center">
             <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-              Powerful <span className="bg-gradient-to-r from-emerald-300 to-cyan-300 bg-clip-text text-transparent">Features</span>
+              Powerful <span className="inline-block bg-gradient-to-r from-emerald-300 to-cyan-300 bg-clip-text text-transparent">Features</span>
             </h2>
             <p className="mt-4 text-slate-400 max-w-2xl mx-auto">
-              Everything you need for comprehensive portfolio construction and analysis
+              Everything you need to build a portfolio you can trust
             </p>
           </div>
 
           {/* Risk Models */}
           <div className="mb-16">
-            <h3 className="mb-6 text-xl font-semibold text-emerald-400">Risk Models</h3>
+            <h3 className="mb-6 text-xl font-semibold text-emerald-400">Smart Analysis</h3>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <div className="finlove-card p-5">
-                <h4 className="mb-2 font-semibold text-slate-100">Ledoit-Wolf Shrinkage</h4>
+                <h4 className="mb-2 font-semibold text-slate-100">Stable Estimates</h4>
                 <p className="text-xs text-slate-400">
-                  Reduces estimation error by shrinking sample covariance towards a target matrix. 
-                  Recommended for stability.
+                  Uses advanced math to filter out short-term market noise and find
+                  reliable long-term trends.
                 </p>
               </div>
               <div className="finlove-card p-5">
-                <h4 className="mb-2 font-semibold text-slate-100">Graphical LASSO</h4>
+                <h4 className="mb-2 font-semibold text-slate-100">Precision Tracking</h4>
                 <p className="text-xs text-slate-400">
-                  Estimates sparse precision matrix using L1 regularization. Useful for 
-                  high-dimensional portfolios.
+                  Identifies hidden relationships between different assets to
+                  better diversify your portfolio.
                 </p>
               </div>
               <div className="finlove-card p-5">
-                <h4 className="mb-2 font-semibold text-slate-100">GARCH(1,1)</h4>
+                <h4 className="mb-2 font-semibold text-slate-100">Volatility Protection</h4>
                 <p className="text-xs text-slate-400">
-                  Time-varying volatility per asset. Captures volatility clustering and 
-                  regime changes.
+                  Adapts to changing market conditions. When markets get bumpy,
+                  our models adjust to keep you safe.
                 </p>
               </div>
               <div className="finlove-card p-5">
-                <h4 className="mb-2 font-semibold text-slate-100">DCC</h4>
+                <h4 className="mb-2 font-semibold text-slate-100">Dynamic Correlations</h4>
                 <p className="text-xs text-slate-400">
-                  Dynamic Conditional Correlation approximation. Models time-varying 
-                  correlations between assets.
+                  Understands that assets move differently in crashes vs. booms,
+                  helping protect you when it matters most.
                 </p>
               </div>
             </div>
@@ -292,36 +290,41 @@ export default function LandingPage() {
 
           {/* Optimization Methods */}
           <div className="mb-16">
-            <h3 className="mb-6 text-xl font-semibold text-emerald-400">Optimization Methods</h3>
+            <h3 className="mb-6 text-xl font-semibold text-emerald-400">Portfolio Balance</h3>
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
               <div className="finlove-card p-5">
-                <h4 className="mb-2 font-semibold text-slate-100">Markowitz Mean-Variance</h4>
+                <h4 className="mb-2 font-semibold text-slate-100">Classic Balance</h4>
                 <p className="text-xs text-slate-400">
-                  Maximizes return - risk penalty. The classic portfolio optimization approach.
+                  The Nobel Prize-winning approach. Finds the best possible return
+                  for your comfort level with risk.
                 </p>
               </div>
               <div className="finlove-card p-5">
-                <h4 className="mb-2 font-semibold text-slate-100">Minimum Variance</h4>
+                <h4 className="mb-2 font-semibold text-slate-100">Safety First</h4>
                 <p className="text-xs text-slate-400">
-                  Minimizes portfolio variance subject to budget constraints. Focuses purely on risk reduction.
+                  Constructs the most stable portfolio possible. Ideal for preserving
+                  wealth and avoiding sleepless nights.
                 </p>
               </div>
               <div className="finlove-card p-5">
-                <h4 className="mb-2 font-semibold text-slate-100">Sharpe Maximization</h4>
+                <h4 className="mb-2 font-semibold text-slate-100">Max Efficiency</h4>
                 <p className="text-xs text-slate-400">
-                  Maximizes risk-adjusted returns (Sharpe ratio). Balances return and risk optimally.
+                  Targets the highest "bang for your buck" (return per unit of risk).
+                  Great for long-term growth.
                 </p>
               </div>
               <div className="finlove-card p-5">
-                <h4 className="mb-2 font-semibold text-slate-100">Black-Litterman</h4>
+                <h4 className="mb-2 font-semibold text-slate-100">Market Views</h4>
                 <p className="text-xs text-slate-400">
-                  Combines market equilibrium returns with investor views. More stable than pure Markowitz.
+                  Combines market data with your own intuition. A flexible way to
+                  express your investment ideas.
                 </p>
               </div>
               <div className="finlove-card p-5">
-                <h4 className="mb-2 font-semibold text-slate-100">CVaR Optimization</h4>
+                <h4 className="mb-2 font-semibold text-slate-100">Crash Protection</h4>
                 <p className="text-xs text-slate-400">
-                  Minimizes Conditional Value at Risk. Focuses on tail risk and extreme losses.
+                  Specifically designed to minimize losses during extreme market
+                  crashes and "black swan" events.
                 </p>
               </div>
             </div>
@@ -330,23 +333,23 @@ export default function LandingPage() {
           {/* Backtesting & Dashboard */}
           <div className="grid gap-6 md:grid-cols-2">
             <div className="finlove-card p-6">
-              <h3 className="mb-4 text-xl font-semibold text-emerald-400">Backtesting Engine</h3>
+              <h3 className="mb-4 text-xl font-semibold text-emerald-400">History Testing</h3>
               <ul className="space-y-3 text-sm text-slate-300">
                 <li className="flex items-start gap-2">
                   <span className="text-emerald-400">✓</span>
-                  <span><strong>Simple Backtest:</strong> One-time optimization using all historical data</span>
+                  <span><strong>Simple Test:</strong> See how your strategy would have done in the past</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-emerald-400">✓</span>
-                  <span><strong>Walk-Forward Backtest:</strong> Rolling window backtest for realistic performance</span>
+                  <span><strong>Realistic Simulation:</strong> "Walk-forward" testing mimics real-life investing</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-emerald-400">✓</span>
-                  <span><strong>Transaction Costs:</strong> Proportional costs per rebalancing</span>
+                  <span><strong>Cost Analysis:</strong> Accounts for trading fees so you see net returns</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-emerald-400">✓</span>
-                  <span><strong>Rebalance Bands:</strong> Drift-based rebalancing to reduce turnover</span>
+                  <span><strong>Smart Rebalancing:</strong> Keeps your portfolio on track automatically</span>
                 </li>
               </ul>
             </div>
@@ -355,19 +358,19 @@ export default function LandingPage() {
               <ul className="space-y-3 text-sm text-slate-300">
                 <li className="flex items-start gap-2">
                   <span className="text-emerald-400">✓</span>
-                  <span><strong>Interactive Interface:</strong> Easy-to-use Streamlit web app</span>
+                  <span><strong>Easy Interface:</strong> Simple web app, no installation needed</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-emerald-400">✓</span>
-                  <span><strong>Comprehensive Visualizations:</strong> Returns, Sharpe, drawdowns, weights</span>
+                  <span><strong>Clear Charts:</strong> Visualize growth, drawdowns, and asset weights</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-emerald-400">✓</span>
-                  <span><strong>Performance Metrics:</strong> All key metrics in organized tabs</span>
+                  <span><strong>Key Metrics:</strong> All the important numbers in one place</span>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="text-emerald-400">✓</span>
-                  <span><strong>Company Information:</strong> Detailed data for each ticker</span>
+                  <span><strong>Company Info:</strong> Detailed data for every stock in your portfolio</span>
                 </li>
               </ul>
             </div>
@@ -375,54 +378,52 @@ export default function LandingPage() {
         </div>
       </section>
 
+
+
       {/* Our Team Section */}
-      <section id="team" className="border-t border-slate-800/70 px-4 py-20 sm:px-6 lg:px-8">
-        <div className="mx-auto max-w-6xl">
+      <section id="team" className="border-t border-slate-800/70 py-20">
+        <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <div className="mb-12 text-center">
             <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-              Our <span className="bg-gradient-to-r from-emerald-300 to-cyan-300 bg-clip-text text-transparent">Team</span>
+              Our <span className="inline-block bg-gradient-to-r from-emerald-300 to-cyan-300 bg-clip-text text-transparent">Team</span>
             </h2>
             <p className="mt-4 text-slate-400 max-w-2xl mx-auto">
               A collaborative effort by passionate students and researchers
             </p>
           </div>
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-            <div className="finlove-card p-6 text-center">
-              <div className="mb-4 mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/20 ring-1 ring-emerald-400/40">
-                <span className="text-2xl font-semibold text-emerald-400">NDA</span>
+        </div>
+
+        <div className="relative flex w-full flex-col items-center justify-center overflow-hidden py-8">
+          <Marquee pauseOnHover className="[--duration:20s]">
+            {[
+              { name: "Nguyen Van Duy Anh", role: "Team Member", initial: "NDA" },
+              { name: "Pham Dinh Hieu", role: "Team Member", initial: "PDH" },
+              { name: "Cao Pham Minh Dang", role: "Team Member", initial: "CPMD" },
+              { name: "Tran Anh Chuong", role: "Team Member", initial: "TAC" },
+              { name: "Ngo Dinh Khanh", role: "Team Member", initial: "NDK" },
+              { name: "Pham Huy Hieu", role: "Team Member", img: "/images/pham-huy-hieu.webp" },
+              { name: "Le Duy Dung", role: "Team Member", img: "/images/Le-Duy-Dung.png" },
+            ].map((member, i) => (
+              <div
+                key={i}
+                className="finlove-card mx-4 flex w-64 shrink-0 flex-col items-center p-6 text-center"
+              >
+                {member.img ? (
+                  <div className="mb-4 h-24 w-24 overflow-hidden rounded-full ring-1 ring-emerald-400/40">
+                    <img src={member.img} alt={member.name} className="h-full w-full object-cover" />
+                  </div>
+                ) : (
+                  <div className="mb-4 flex h-24 w-24 items-center justify-center rounded-full bg-emerald-500/20 ring-1 ring-emerald-400/40">
+                    <span className="text-2xl font-semibold text-emerald-400">{member.initial}</span>
+                  </div>
+                )}
+                <h3 className="mb-1 text-lg font-semibold text-slate-100">{member.name}</h3>
+                <p className="text-sm text-slate-400">{member.role}</p>
               </div>
-              <h3 className="mb-1 text-lg font-semibold text-slate-100">Nguyen Van Duy Anh</h3>
-              <p className="text-sm text-slate-400">Team Member</p>
-            </div>
-            <div className="finlove-card p-6 text-center">
-              <div className="mb-4 mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/20 ring-1 ring-emerald-400/40">
-                <span className="text-2xl font-semibold text-emerald-400">PDH</span>
-              </div>
-              <h3 className="mb-1 text-lg font-semibold text-slate-100">Pham Dinh Hieu</h3>
-              <p className="text-sm text-slate-400">Team Member</p>
-            </div>
-            <div className="finlove-card p-6 text-center">
-              <div className="mb-4 mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/20 ring-1 ring-emerald-400/40">
-                <span className="text-2xl font-semibold text-emerald-400">CPMD</span>
-              </div>
-              <h3 className="mb-1 text-lg font-semibold text-slate-100">Cao Pham Minh Dang</h3>
-              <p className="text-sm text-slate-400">Team Member</p>
-            </div>
-            <div className="finlove-card p-6 text-center">
-              <div className="mb-4 mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/20 ring-1 ring-emerald-400/40">
-                <span className="text-2xl font-semibold text-emerald-400">TAC</span>
-              </div>
-              <h3 className="mb-1 text-lg font-semibold text-slate-100">Tran Anh Chuong</h3>
-              <p className="text-sm text-slate-400">Team Member</p>
-            </div>
-            <div className="finlove-card p-6 text-center">
-              <div className="mb-4 mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-500/20 ring-1 ring-emerald-400/40">
-                <span className="text-2xl font-semibold text-emerald-400">NDK</span>
-              </div>
-              <h3 className="mb-1 text-lg font-semibold text-slate-100">Ngo Dinh Khanh</h3>
-              <p className="text-sm text-slate-400">Team Member</p>
-            </div>
-          </div>
+            ))}
+          </Marquee>
+          <div className="pointer-events-none absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-slate-950 dark:from-background"></div>
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-1/3 bg-gradient-to-l from-slate-950 dark:from-background"></div>
         </div>
       </section>
 
@@ -431,7 +432,7 @@ export default function LandingPage() {
         <div className="mx-auto max-w-4xl">
           <div className="mb-12 text-center">
             <h2 className="text-3xl font-semibold tracking-tight sm:text-4xl">
-              Get in <span className="bg-gradient-to-r from-emerald-300 to-cyan-300 bg-clip-text text-transparent">Touch</span>
+              Get in <span className="inline-block bg-gradient-to-r from-emerald-300 to-cyan-300 bg-clip-text text-transparent">Touch</span>
             </h2>
             <p className="mt-4 text-slate-400 max-w-2xl mx-auto">
               Have questions, suggestions, or want to contribute? We'd love to hear from you!
@@ -523,11 +524,11 @@ export default function LandingPage() {
                 <span className="text-sm font-semibold text-emerald-400">ƒ</span>
               </div>
               <p className="text-sm text-slate-400">
-                FinLove — Risk-Aware Portfolio Construction
+                FinLove — Smart Portfolio Construction
               </p>
             </div>
             <p className="text-xs text-slate-500">
-              Built for research and education purposes · Data from Yahoo Finance
+              Built for everyone · Data from Yahoo Finance
             </p>
           </div>
         </div>
