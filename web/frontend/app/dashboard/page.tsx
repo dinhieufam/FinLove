@@ -77,6 +77,7 @@ type PredictionResponse = {
     annualized_volatility: number;
   }[];
   forecast_horizon?: number;
+  forecast_method?: string; // Which forecasting method was used (xgboost, lstm, etc.)
 };
 
 function toChartData(series?: TimeSeriesPayload) {
@@ -147,8 +148,8 @@ export default function DashboardPage() {
       }));
   }, [data, investmentAmount]);
 
-  const predictionSeries = useMemo(() => {
-    if (!predData?.series) return [];
+  const predictionSeries = useMemo<{ hist: { date: string; value: number }[]; fore: { date: string; value: number }[] } | null>(() => {
+    if (!predData?.series) return null;
     const hist = toChartData(predData.series.historical);
     const fore = toChartData(predData.series.forecast);
     return { hist, fore };
@@ -322,9 +323,15 @@ export default function DashboardPage() {
           <div className="space-y-2">
             <label className="block text-xs font-medium text-slate-300">Model</label>
             <select value={predModel} onChange={(e) => setPredModel(e.target.value)} className="w-full rounded-lg border border-slate-700/60 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400/60">
-              <option value="ensemble">Ensemble (Best)</option>
-              <option value="lstm">LSTM</option>
+              <option value="ensemble">Ensemble (Recommended)</option>
               <option value="arima">ARIMA</option>
+              <option value="prophet">Prophet</option>
+              <option value="lstm">LSTM</option>
+              <option value="tcn">TCN (Temporal CNN)</option>
+              <option value="xgboost">XGBoost</option>
+              <option value="transformer">Transformer</option>
+              <option value="ma">Moving Average</option>
+              <option value="exponential_smoothing">Exponential Smoothing</option>
             </select>
           </div>
           <button
@@ -523,8 +530,12 @@ export default function DashboardPage() {
                         <XAxis dataKey="date" type="category" allowDuplicatedCategory={false} tick={{ fontSize: 11, fill: "#94a3b8" }} />
                         <YAxis tick={{ fontSize: 11, fill: "#94a3b8" }} tickFormatter={(v) => v.toFixed(2)} />
                         <Tooltip contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155" }} />
-                        <Line data={predictionSeries.hist} type="monotone" dataKey="value" stroke="#34d399" strokeWidth={2} dot={false} name="Historical" />
-                        <Line data={predictionSeries.fore} type="monotone" dataKey="value" stroke="#f472b6" strokeWidth={2} strokeDasharray="5 5" dot={false} name="Forecast" />
+                        {predictionSeries && (
+                          <>
+                            <Line data={predictionSeries.hist} type="monotone" dataKey="value" stroke="#34d399" strokeWidth={2} dot={false} name="Historical" />
+                            <Line data={predictionSeries.fore} type="monotone" dataKey="value" stroke="#f472b6" strokeWidth={2} strokeDasharray="5 5" dot={false} name="Forecast" />
+                          </>
+                        )}
                       </LineChart>
                     </ResponsiveContainer>
                   </div>
@@ -532,12 +543,23 @@ export default function DashboardPage() {
 
                 {predData.top_models && (
                   <div className="finlove-card p-6">
-                    <h3 className="mb-4 text-lg font-semibold">Top Performing Models</h3>
+                    <div className="mb-4 flex items-center justify-between">
+                      <h3 className="text-lg font-semibold">Top Portfolio Models</h3>
+                      {predData.forecast_method && (
+                        <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-400">
+                          Forecasted with: {predData.forecast_method.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mb-4 text-xs text-slate-400">
+                      These are the top-performing portfolio optimization models (selected by Sharpe ratio). 
+                      Each model's historical returns were forecasted using the {predData.forecast_method || 'selected'} method.
+                    </p>
                     <div className="overflow-x-auto">
                       <table className="w-full text-sm text-left">
                         <thead className="text-xs text-slate-400 uppercase bg-slate-900/50">
                           <tr>
-                            <th className="px-4 py-3">Model</th>
+                            <th className="px-4 py-3">Portfolio Model</th>
                             <th className="px-4 py-3">Sharpe</th>
                             <th className="px-4 py-3">Return</th>
                             <th className="px-4 py-3">Volatility</th>

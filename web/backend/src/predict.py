@@ -38,7 +38,11 @@ def check_forecasting_dependencies() -> Dict[str, bool]:
         'arima': False,
         'prophet': False,
         'lstm': False,
-        'exponential_smoothing': False
+        'tcn': False,
+        'xgboost': False,
+        'transformer': False,
+        'exponential_smoothing': False,
+        'ma': True,  # Always available (no dependencies)
     }
     
     try:
@@ -58,6 +62,14 @@ def check_forecasting_dependencies() -> Dict[str, bool]:
     try:
         from tensorflow import keras
         dependencies['lstm'] = True
+        dependencies['tcn'] = True  # TCN also uses TensorFlow
+        dependencies['transformer'] = True  # Transformer also uses TensorFlow
+    except ImportError:
+        pass
+    
+    try:
+        import xgboost
+        dependencies['xgboost'] = True
     except ImportError:
         pass
     
@@ -126,12 +138,19 @@ def predict_future_performance(
     print("=" * 60)
     
     # Check dependencies (optional, informative only)
-    if forecast_method in ['arima', 'prophet', 'lstm', 'exponential_smoothing']:
+    if forecast_method not in ['ensemble', 'ma']:
         deps = check_forecasting_dependencies()
         if not deps.get(forecast_method, False):
             print(f"\n⚠️  Warning: {forecast_method} requires additional dependencies.")
             print("   Falling back to 'ma' (moving average) method.")
-            print("   Install with: pip install statsmodels (for arima) or pip install prophet")
+            if forecast_method in ['arima', 'exponential_smoothing']:
+                print("   Install with: pip install statsmodels")
+            elif forecast_method == 'prophet':
+                print("   Install with: pip install prophet")
+            elif forecast_method in ['lstm', 'tcn', 'transformer']:
+                print("   Install with: pip install tensorflow")
+            elif forecast_method == 'xgboost':
+                print("   Install with: pip install xgboost")
             forecast_method = 'ma'  # Fallback to moving average
     
     # Step 1: Collect results from all models

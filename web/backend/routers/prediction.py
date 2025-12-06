@@ -43,9 +43,9 @@ class PredictionRequest(BaseModel):
         le=365,
         description="Number of days to forecast."
     )
-    model: Literal["ensemble", "arima", "prophet", "lstm", "ma"] = Field(
+    model: Literal["ensemble", "arima", "prophet", "lstm", "tcn", "xgboost", "transformer", "ma", "exponential_smoothing"] = Field(
         default="ensemble",
-        description="Forecasting method to use."
+        description="Forecasting method to use. Available: ensemble (combines multiple), arima, prophet, lstm, tcn, xgboost, transformer, ma (moving average), exponential_smoothing."
     )
     use_top_models: int = Field(
         default=3,
@@ -133,7 +133,8 @@ async def predict_portfolio(payload: PredictionRequest) -> dict:
                 "forecast_volatility": float(aggregated_prediction.std())
             },
             "top_models": top_models_list,
-            "forecast_horizon": payload.forecast_horizon
+            "forecast_horizon": payload.forecast_horizon,
+            "forecast_method": payload.model  # Include which forecasting method was used
         }
 
     except Exception as e:
