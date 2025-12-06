@@ -1,3 +1,8 @@
+import os
+# Suppress TensorFlow/CUDA warnings
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
