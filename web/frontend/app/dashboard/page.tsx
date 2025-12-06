@@ -1,10 +1,11 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
+import React, { useMemo, useState, useEffect, useRef } from "react";
 import { AppShell } from "@components/layout/AppShell";
 import { StatCard } from "@components/ui/StatCard";
 import { Heatmap } from "@components/ui/Heatmap";
 import { AssetCard } from "@components/ui/AssetCard";
+import { ChatBot } from "@components/ui/ChatBot";
 import {
   Line,
   LineChart,
@@ -112,8 +113,7 @@ type ModelPrediction = {
 type PredictionResponse = {
   ok: boolean;
   error?: string;
-  mode?: "portfolio" | "all";
-  // Portfolio Mode Fields
+  mode?: "portfolio";
   series?: {
     historical: TimeSeriesPayload;
     forecast: TimeSeriesPayload;
@@ -122,15 +122,9 @@ type PredictionResponse = {
     expected_daily_return: number;
     forecast_volatility: number;
   };
-  top_models?: {
-    model_id: string;
-    sharpe_ratio: number;
-    annualized_return: number;
-    annualized_volatility: number;
-  }[];
-  // All Mode Fields
-  predictions?: Record<string, Record<string, ModelPrediction | null>>;
   forecast_horizon?: number;
+  optimization_method?: string;
+  risk_model?: string;
 };
 
 function toChartData(series?: TimeSeriesPayload) {
@@ -149,12 +143,79 @@ const MODEL_COLORS: Record<string, string> = {
   transformer: '#9467bd' // Purple
 };
 
+const RISK_MODEL_OPTIONS = [
+  {
+    id: 'sample',
+    label: 'A. "My industry is generally stable and predictable; things don\'t swing too wildly."',
+    value: 'sample',
+    description: "Sample Covariance - Basic risk estimate; good when data is clean and plentiful."
+  },
+  {
+    id: 'ledoit_wolf',
+    label: 'B. "My industry is messy or uncertain — signals are weak, and I just need something reliable."',
+    value: 'ledoit_wolf',
+    description: "Ledoit-Wolf Shrinkage - More stable results; works well when data is noisy."
+  },
+  {
+    id: 'glasso',
+    label: 'C. "I work with many assets, but only a few really move together — I care about the strongest relationships."',
+    value: 'glasso',
+    description: "Graphical Lasso (GLASSO) - Highlights only the strongest links between assets; good for many-asset portfolios."
+  },
+  {
+    id: 'garch',
+    label: 'D. "My market changes fast — volatility spikes matter a lot."',
+    value: 'garch',
+    description: "GARCH - Captures changing market volatility; useful in fast-moving markets."
+  }
+];
+
+const OPTIMIZATION_OPTIONS = [
+  {
+    id: 'markowitz',
+    label: 'A. "Balanced — I want a reasonable mix of risk and return."',
+    value: 'markowitz',
+    description: "Markowitz - Balanced mix of risk and return; good all-around choice."
+  },
+  {
+    id: 'min_variance',
+    label: 'B. "Very cautious — I just want the lowest risk possible."',
+    value: 'min_variance',
+    description: "Minimum Variance - Focuses on lowest risk; ideal for very cautious investors."
+  },
+  {
+    id: 'sharpe',
+    label: 'C. "Return-focused — I want the best reward for the risk I take."',
+    value: 'sharpe',
+    description: "Max Sharpe - Aims for the best return for the risk taken; great for growth."
+  },
+  {
+    id: 'black_litterman',
+    label: 'D. "Strategic — I want to blend market trends with my own views."',
+    value: 'black_litterman',
+    description: "Black-Litterman - Combines market data with your views; good for strategic thinking."
+  },
+  {
+    id: 'cvar',
+    label: 'E. "Risk-aware — I want protection against big losses."',
+    value: 'cvar',
+    description: "CVaR - Reduces extreme losses; useful in turbulent or risky markets."
+  }
+];
+
 export default function DashboardPage() {
+  // Ref for scrolling to top
+  const topRef = useRef<HTMLDivElement>(null);
+  
   // General State
   const [activeTab, setActiveTab] = useState<"investment" | "analyze" | "prediction">("investment");
 
+  // Available tickers from backend
+  const [availableTickers, setAvailableTickers] = useState<string[]>([]);
+  const [tickersWithNames, setTickersWithNames] = useState<Array<{ticker: string, name: string}>>([]);
+  const [selectedTickers, setSelectedTickers] = useState<string[]>(["XLK", "XLF", "XLV", "XLY", "XLP", "XLE", "XLI", "XLB", "XLU", "XLRE", "XLC"]);
+
   // Analysis State
-  const [tickers, setTickers] = useState("XLK,XLF,XLV,XLY,XLP,XLE,XLI,XLB,XLU,XLRE,XLC");
   const [startDate, setStartDate] = useState("2015-01-01");
   const [endDate, setEndDate] = useState("2024-12-31");
   const [optimizationMethod, setOptimizationMethod] = useState("markowitz");
@@ -169,10 +230,37 @@ export default function DashboardPage() {
 
   // Prediction State
   const [predHorizon, setPredHorizon] = useState(30);
-  const [predModel, setPredModel] = useState("all"); // Default to 'all' for multi-model view
   const [predLoading, setPredLoading] = useState(false);
   const [predError, setPredError] = useState<string | null>(null);
   const [predData, setPredData] = useState<PredictionResponse | null>(null);
+
+  // Fetch available tickers on mount
+  useEffect(() => {
+    const fetchAvailableTickers = async () => {
+      try {
+        const res = await fetch("http://localhost:8000/api/portfolio/available-tickers");
+        const json = await res.json();
+        if (json.tickers) {
+          setAvailableTickers(json.tickers);
+          // Store tickers with names if available
+          if (json.tickers_with_names) {
+            setTickersWithNames(json.tickers_with_names);
+          }
+          // Filter selected tickers to only include available ones
+          setSelectedTickers(prev => prev.filter(t => json.tickers.includes(t)));
+        }
+      } catch (e) {
+        console.error("Failed to fetch available tickers:", e);
+      }
+    };
+    fetchAvailableTickers();
+  }, []);
+
+  // Helper function to get company name for a ticker
+  const getTickerName = (ticker: string): string => {
+    const tickerInfo = tickersWithNames.find(t => t.ticker === ticker);
+    return tickerInfo?.name || ticker;
+  };
 
   // Computed Data for Charts
   const cumulativeSeries = useMemo(() => {
@@ -239,11 +327,19 @@ export default function DashboardPage() {
 
   // Handlers
   const handleRunAnalysis = async () => {
+    // Scroll to top of page
+    if (topRef.current) {
+      topRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    
     setLoading(true);
     setError(null);
     try {
       const body = {
-        tickers: tickers.split(",").map((t) => t.trim()).filter(Boolean),
+        tickers: selectedTickers,
         use_default_universe: false,
         start_date: startDate,
         end_date: endDate,
@@ -279,16 +375,26 @@ export default function DashboardPage() {
   };
 
   const handleRunPrediction = async () => {
+    // Scroll to top of page
+    if (topRef.current) {
+      topRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+    
     setPredLoading(true);
     setPredError(null);
     try {
       const body = {
-        tickers: tickers.split(",").map((t) => t.trim()).filter(Boolean),
+        tickers: selectedTickers,
         start_date: startDate,
         end_date: endDate,
         forecast_horizon: predHorizon,
-        model: predModel,
-        use_top_models: 3
+        optimization_method: optimizationMethod,
+        risk_model: riskModel,
+        risk_aversion: riskAversion
+        // forecast_method removed - backend now always uses SARIMAX
       };
 
       const res = await fetch("http://localhost:8000/api/portfolio/predict", {
@@ -327,13 +433,56 @@ export default function DashboardPage() {
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-slate-300">Tickers</label>
-            <input
-              value={tickers}
-              onChange={(e) => setTickers(e.target.value)}
-              className="w-full rounded-lg border border-slate-700/60 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400/60"
-              placeholder="AAPL, MSFT..."
-            />
+            <label className="block text-xs font-medium text-slate-300">Tickers ({selectedTickers.length} selected)</label>
+            <div className="w-full rounded-lg border border-slate-700/60 bg-slate-950/60 p-2 text-sm max-h-48 overflow-y-auto">
+              {availableTickers.length === 0 ? (
+                <p className="text-slate-500 text-xs py-2">Loading available tickers...</p>
+              ) : (
+                <div className="space-y-1">
+                  {availableTickers.map((ticker) => (
+                    <label
+                      key={ticker}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-800/50 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedTickers.includes(ticker)}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedTickers([...selectedTickers, ticker]);
+                          } else {
+                            setSelectedTickers(selectedTickers.filter(t => t !== ticker));
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-slate-600 bg-slate-800 text-emerald-500 focus:ring-emerald-500 focus:ring-offset-0"
+                      />
+                      <span className="text-slate-100 text-sm">
+                        {ticker} <span className="text-slate-400">({getTickerName(ticker)})</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
+            </div>
+            {selectedTickers.length > 0 && (
+              <div className="flex flex-wrap gap-1">
+                {selectedTickers.map((ticker) => (
+                  <span
+                    key={ticker}
+                    className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                    title={getTickerName(ticker)}
+                  >
+                    {ticker}
+                    <button
+                      onClick={() => setSelectedTickers(selectedTickers.filter(t => t !== ticker))}
+                      className="hover:text-emerald-300 ml-1"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="grid gap-3 sm:grid-cols-2">
@@ -347,25 +496,69 @@ export default function DashboardPage() {
             </div>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="space-y-3">
+            <label className="block text-xs font-medium text-slate-300">
+              How would you describe the market environment you operate in?
+            </label>
             <div className="space-y-2">
-              <label className="block text-xs font-medium text-slate-300">Risk Model</label>
-              <select value={riskModel} onChange={(e) => setRiskModel(e.target.value)} className="w-full rounded-lg border border-slate-700/60 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400/60">
-                <option value="ledoit_wolf">Ledoit-Wolf</option>
-                <option value="sample">Sample</option>
-                <option value="glasso">GLASSO</option>
-                <option value="garch">GARCH</option>
-              </select>
+              {RISK_MODEL_OPTIONS.map((option) => (
+                <label
+                  key={option.id}
+                  className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${
+                    riskModel === option.value
+                      ? 'border-emerald-500/60 bg-emerald-500/10'
+                      : 'border-slate-700/60 bg-slate-950/60 hover:bg-slate-900/60'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="riskModel"
+                    value={option.value}
+                    checked={riskModel === option.value}
+                    onChange={(e) => setRiskModel(e.target.value)}
+                    className="mt-1 w-4 h-4 text-emerald-500 border-slate-600 focus:ring-emerald-500 focus:ring-offset-0"
+                  />
+                  <div className="flex-1">
+                    <span className="text-xs text-slate-100">{option.label}</span>
+                    {riskModel === option.value && (
+                      <p className="text-xs text-slate-400 mt-1">{option.description}</p>
+                    )}
+                  </div>
+                </label>
+              ))}
             </div>
+          </div>
+
+          <div className="space-y-3">
+            <label className="block text-xs font-medium text-slate-300">
+              What is your investing style?
+            </label>
             <div className="space-y-2">
-              <label className="block text-xs font-medium text-slate-300">Optimization</label>
-              <select value={optimizationMethod} onChange={(e) => setOptimizationMethod(e.target.value)} className="w-full rounded-lg border border-slate-700/60 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400/60">
-                <option value="markowitz">Markowitz</option>
-                <option value="min_variance">Min Variance</option>
-                <option value="sharpe">Sharpe Max</option>
-                <option value="black_litterman">Black-Litterman</option>
-                <option value="cvar">CVaR</option>
-              </select>
+              {OPTIMIZATION_OPTIONS.map((option) => (
+                <label
+                  key={option.id}
+                  className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${
+                    optimizationMethod === option.value
+                      ? 'border-emerald-500/60 bg-emerald-500/10'
+                      : 'border-slate-700/60 bg-slate-950/60 hover:bg-slate-900/60'
+                  }`}
+                >
+                  <input
+                    type="radio"
+                    name="optimizationMethod"
+                    value={option.value}
+                    checked={optimizationMethod === option.value}
+                    onChange={(e) => setOptimizationMethod(e.target.value)}
+                    className="mt-1 w-4 h-4 text-emerald-500 border-slate-600 focus:ring-emerald-500 focus:ring-offset-0"
+                  />
+                  <div className="flex-1">
+                    <span className="text-xs text-slate-100">{option.label}</span>
+                    {optimizationMethod === option.value && (
+                      <p className="text-xs text-slate-400 mt-1">{option.description}</p>
+                    )}
+                  </div>
+                </label>
+              ))}
             </div>
           </div>
 
@@ -403,13 +596,7 @@ export default function DashboardPage() {
             <input type="number" value={predHorizon} onChange={(e) => setPredHorizon(parseInt(e.target.value))} className="w-full rounded-lg border border-slate-700/60 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400/60" />
           </div>
           <div className="space-y-2">
-            <label className="block text-xs font-medium text-slate-300">Model</label>
-            <select value={predModel} onChange={(e) => setPredModel(e.target.value)} className="w-full rounded-lg border border-slate-700/60 bg-slate-950/60 px-3 py-2 text-sm text-slate-100 outline-none focus:border-emerald-400/60">
-              <option value="all">Run All Models (Comparison)</option>
-              <option value="ensemble">Ensemble (Best)</option>
-              <option value="lstm">LSTM</option>
-              <option value="arima">ARIMA</option>
-            </select>
+            <p className="text-xs text-slate-400">Uses SARIMAX model with portfolio strategy from config (Risk Model & Optimization)</p>
           </div>
           <button
             onClick={handleRunPrediction}
@@ -426,7 +613,7 @@ export default function DashboardPage() {
 
   return (
     <AppShell sidebarContent={sidebarContent}>
-      <div className="space-y-8">
+      <div ref={topRef} className="space-y-8">
         <header className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Portfolio Studio</h1>
@@ -711,7 +898,14 @@ export default function DashboardPage() {
                     </div>
 
                     <div className="finlove-card p-6">
-                      <h3 className="mb-4 text-lg font-semibold">Forecast Trajectory</h3>
+                      <div className="mb-4 flex items-center justify-between">
+                        <h3 className="text-lg font-semibold">Forecast Trajectory</h3>
+                        {predData.optimization_method && predData.risk_model && (
+                          <div className="text-xs text-slate-400">
+                            Strategy: {predData.optimization_method.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} + {predData.risk_model.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                          </div>
+                        )}
+                      </div>
                       <div className="h-72">
                         <ResponsiveContainer width="100%" height="100%">
                           <LineChart>
@@ -725,123 +919,22 @@ export default function DashboardPage() {
                         </ResponsiveContainer>
                       </div>
                     </div>
-
-                    {predData.top_models && (
-                      <div className="finlove-card p-6">
-                        <h3 className="mb-4 text-lg font-semibold">Top Performing Models</h3>
-                        <div className="overflow-x-auto">
-                          <table className="w-full text-sm text-left">
-                            <thead className="text-xs text-slate-400 uppercase bg-slate-900/50">
-                              <tr>
-                                <th className="px-4 py-3">Model</th>
-                                <th className="px-4 py-3">Sharpe</th>
-                                <th className="px-4 py-3">Return</th>
-                                <th className="px-4 py-3">Volatility</th>
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {predData.top_models.map((m) => (
-                                <tr key={m.model_id} className="border-b border-slate-800/50 hover:bg-slate-800/30">
-                                  <td className="px-4 py-3 font-medium">{m.model_id}</td>
-                                  <td className="px-4 py-3">{m.sharpe_ratio.toFixed(2)}</td>
-                                  <td className="px-4 py-3 text-emerald-400">{(m.annualized_return * 100).toFixed(1)}%</td>
-                                  <td className="px-4 py-3">{(m.annualized_volatility * 100).toFixed(1)}%</td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
-                        </div>
-                      </div>
-                    )}
                   </>
-                )}
-
-                {/* Multi-Model (All) Mode View */}
-                {predData.mode === 'all' && predData.predictions && (
-                  <div className="space-y-8">
-                    <div className="finlove-card p-6 bg-slate-900/50 border-emerald-500/20">
-                      <h3 className="text-xl font-bold text-emerald-400 mb-2">Multi-Model Analysis</h3>
-                      <p className="text-slate-400">Comparing LSTM, TCN, XGBoost, and Transformer forecasts for each asset.</p>
-                    </div>
-
-                    {Object.entries(predData.predictions).map(([ticker, models]) => (
-                      <div key={ticker} className="finlove-card p-6">
-                        <div className="flex items-center justify-between mb-6">
-                          <h3 className="text-xl font-bold">{ticker}</h3>
-                          <span className="text-sm text-slate-500">Forecast Horizon: {predData.forecast_horizon} Days</span>
-                        </div>
-
-                        <div className="grid gap-6 lg:grid-cols-2">
-                          {/* Future Cumulative Returns */}
-                          <div>
-                            <h4 className="mb-4 text-sm font-semibold text-slate-300">Future Cumulative Returns</h4>
-                            <div className="h-64">
-                              <ResponsiveContainer width="100%" height="100%">
-                                <LineChart>
-                                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                                  <XAxis dataKey="date" hide />
-                                  <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} />
-                                  <Tooltip contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155" }} />
-                                  <Legend />
-                                  {Object.entries(models).map(([modelName, prediction]) => (
-                                    prediction && (
-                                      <Line
-                                        key={modelName}
-                                        data={toChartData(prediction.forecast)}
-                                        type="monotone"
-                                        dataKey="value"
-                                        name={modelName.toUpperCase()}
-                                        stroke={MODEL_COLORS[modelName] || '#fff'}
-                                        strokeWidth={2}
-                                        dot={false}
-                                      />
-                                    )
-                                  ))}
-                                </LineChart>
-                              </ResponsiveContainer>
-                            </div>
-                          </div>
-
-                          {/* Volatility Outlook */}
-                          <div>
-                            <h4 className="mb-4 text-sm font-semibold text-slate-300">Volatility Outlook</h4>
-                            <div className="h-64">
-                              <ResponsiveContainer width="100%" height="100%">
-                                <LineChart>
-                                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                                  <XAxis dataKey="date" hide />
-                                  <YAxis tick={{ fontSize: 10, fill: "#94a3b8" }} />
-                                  <Tooltip contentStyle={{ backgroundColor: "#0f172a", borderColor: "#334155" }} />
-                                  <Legend />
-                                  {Object.entries(models).map(([modelName, prediction]) => (
-                                    prediction && (
-                                      <Line
-                                        key={modelName}
-                                        data={toChartData(prediction.volatility)}
-                                        type="monotone"
-                                        dataKey="value"
-                                        name={modelName.toUpperCase()}
-                                        stroke={MODEL_COLORS[modelName] || '#fff'}
-                                        strokeWidth={2}
-                                        dot={false}
-                                        strokeDasharray="3 3"
-                                      />
-                                    )
-                                  ))}
-                                </LineChart>
-                              </ResponsiveContainer>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
                 )}
               </>
             )}
           </div>
         )}
       </div>
+      <ChatBot
+        portfolioData={{
+          optimizationMethod: optimizationMethod,
+          riskModel: riskModel,
+          metrics: data?.metrics,
+          tickers: selectedTickers,
+          portfolio_id: (data as any)?.portfolio_id,
+        }}
+      />
     </AppShell>
   );
 }

@@ -12,7 +12,7 @@ if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
 from src.backtest import simple_backtest, walk_forward_backtest  # type: ignore
-from src.data import prepare_portfolio_data, get_company_info  # type: ignore
+from src.data import prepare_portfolio_data, get_company_info, get_available_tickers, get_available_tickers_with_names  # type: ignore
 from src.metrics import rolling_sharpe, rolling_volatility  # type: ignore
 from src.risk import get_covariance_matrix  # type: ignore
 
@@ -130,6 +130,23 @@ async def get_default_config() -> dict:
     }
 
 
+@router.get("/available-tickers", summary="Get list of available tickers")
+async def get_available_tickers_endpoint() -> dict:
+    """
+    Get list of all available tickers from the data folder with company names.
+    
+    Returns:
+        Dictionary with list of ticker objects (ticker and name) and simple ticker list.
+    """
+    tickers_with_names = get_available_tickers_with_names()
+    tickers = [t['ticker'] for t in tickers_with_names]
+    return {
+        "tickers": tickers,
+        "tickers_with_names": tickers_with_names,
+        "count": len(tickers)
+    }
+
+
 def _series_to_payload(series) -> Dict[str, Any]:
     """Convert a pandas Series to a JSON-serializable payload."""
     if series is None or getattr(series, "empty", False):
@@ -163,12 +180,25 @@ async def analyze_portfolio(payload: BacktestRequest) -> dict:
     - run the chosen backtest,
     - and return metrics / series for visualization.
     """
+    # Get available tickers for validation
+    available_tickers = set(get_available_tickers())
+    
     # Resolve effective universe
     user_tickers = payload.tickers or []
     if payload.use_default_universe or not user_tickers:
         tickers = DEFAULT_UNIVERSE.copy()
     else:
         tickers = [t.strip().upper() for t in user_tickers if t.strip()]
+    
+    # Validate that all requested tickers are available
+    invalid_tickers = [t for t in tickers if t not in available_tickers]
+    if invalid_tickers:
+        return {
+            "ok": False,
+            "error": f"Invalid tickers: {', '.join(invalid_tickers)}. Available tickers: {', '.join(sorted(available_tickers))}",
+            "tickers": tickers,
+            "available_tickers": sorted(available_tickers)
+        }
 
     # Prepare data
     returns, prices = prepare_portfolio_data(
@@ -356,6 +386,16 @@ async def analyze_portfolio(payload: BacktestRequest) -> dict:
     for ticker in tickers:
         asset_returns_payload[ticker] = [float(x) for x in returns[ticker].dropna().values]
     response["assets_returns"] = asset_returns_payload
+
+    # Store portfolio in RAG system for Q&A (async, don't block response)
+    try:
+        from src.rag_system import get_rag_system
+        rag_system = get_rag_system()
+        portfolio_id = rag_system.store_portfolio(response)
+        response["portfolio_id"] = portfolio_id  # Include portfolio ID in response
+    except Exception as e:
+        print(f"Warning: Failed to store portfolio in RAG system: {e}")
+        # Don't fail the request if RAG storage fails
 
     return response
 
