@@ -12,8 +12,9 @@ if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
 from src.backtest import simple_backtest, walk_forward_backtest  # type: ignore
-from src.data import prepare_portfolio_data  # type: ignore
+from src.data import prepare_portfolio_data, get_company_info  # type: ignore
 from src.metrics import rolling_sharpe, rolling_volatility  # type: ignore
+from src.risk import get_covariance_matrix  # type: ignore
 
 
 router = APIRouter()
@@ -254,7 +255,7 @@ async def analyze_portfolio(payload: BacktestRequest) -> dict:
         for asset, w in weights_sorted.items()
     ]
 
-    return {
+    response = {
         "ok": True,
         "universe": tickers,
         "metrics": metrics,
@@ -283,5 +284,79 @@ async def analyze_portfolio(payload: BacktestRequest) -> dict:
             "end_date": payload.end_date,
         },
     }
+
+    # --- Full Feature Migration Additions ---
+    
+    # 1. Risk Matrices
+    import numpy as np
+    try:
+        cov_matrix = get_covariance_matrix(returns, method=payload.risk_model)
+        # Calculate correlation matrix
+        d = np.sqrt(np.diag(cov_matrix))
+        d = np.clip(d, 1e-8, None) # Avoid division by zero
+        corr_matrix = cov_matrix.values / np.outer(d, d)
+        
+        risk_matrices = {
+            "covariance": {
+                "labels": list(cov_matrix.columns),
+                "matrix": cov_matrix.values.tolist()
+            },
+            "correlation": {
+                "labels": list(cov_matrix.columns),
+                "matrix": corr_matrix.tolist()
+            }
+        }
+    except Exception as e:
+        print(f"Error computing risk matrices: {e}")
+        risk_matrices = None
+
+    # 2. Company Info
+    company_info = []
+    for ticker in tickers:
+        try:
+            info = get_company_info(ticker)
+            company_info.append(info)
+        except:
+            company_info.append({"symbol": ticker, "name": ticker})
+
+    # 3. Per-Asset Analysis
+    assets_analysis = {}
+    for ticker in tickers:
+        try:
+            asset_ret = returns[ticker].dropna()
+            if len(asset_ret) > 10:
+                # Cumulative
+                asset_cum = (1 + asset_ret).cumprod()
+                # Rolling Sharpe
+                asset_sharpe = rolling_sharpe(asset_ret, window=252)
+                # Drawdown
+                asset_running_max = asset_cum.expanding().max()
+                asset_dd = (asset_cum - asset_running_max) / asset_running_max
+                
+                assets_analysis[ticker] = {
+                    "cumulative": _series_to_payload(asset_cum),
+                    "rolling_sharpe": _series_to_payload(asset_sharpe),
+                    "drawdown": _series_to_payload(asset_dd),
+                    "metrics": {
+                        "total_return": float(asset_cum.iloc[-1] - 1),
+                        "volatility": float(asset_ret.std() * np.sqrt(252)),
+                        "sharpe": float(asset_ret.mean() * 252 / (asset_ret.std() * np.sqrt(252))) if asset_ret.std() > 0 else 0
+                    }
+                }
+        except Exception as e:
+            print(f"Error analyzing asset {ticker}: {e}")
+
+    # Update response with new data
+    response["risk_matrices"] = risk_matrices
+    response["company_info"] = company_info
+    response["assets_analysis"] = assets_analysis
+    
+    # Add raw returns for histograms
+    asset_returns_payload = {}
+    for ticker in tickers:
+        asset_returns_payload[ticker] = [float(x) for x in returns[ticker].dropna().values]
+    response["assets_returns"] = asset_returns_payload
+
+    return response
 
 
