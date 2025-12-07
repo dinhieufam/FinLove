@@ -396,13 +396,13 @@ export default function LandingPage() {
         <div className="relative flex w-full flex-col items-center justify-center overflow-hidden py-8">
           <Marquee pauseOnHover className="[--duration:20s]">
             {[
-              { name: "Nguyen Van Duy Anh", role: "Team Member", initial: "NDA" },
-              { name: "Pham Dinh Hieu", role: "Team Member", initial: "PDH" },
-              { name: "Cao Pham Minh Dang", role: "Team Member", initial: "CPMD" },
-              { name: "Tran Anh Chuong", role: "Team Member", initial: "TAC" },
-              { name: "Ngo Dinh Khanh", role: "Team Member", initial: "NDK" },
-              { name: "Pham Huy Hieu", role: "Team Member", img: "/images/pham-huy-hieu.webp" },
-              { name: "Le Duy Dung", role: "Team Member", img: "/images/Le-Duy-Dung.png" },
+              { name: "Nguyen Van Duy Anh", role: "Team Member", img: "/images/duyanh.jpg" },
+              { name: "Pham Dinh Hieu", role: "Team Member", img: "/images/dinhhieu.jpg" },
+              { name: "Cao Pham Minh Dang", role: "Team Member", img: "/images/minhdang.png" },
+              { name: "Tran Anh Chuong", role: "Team Member", img: "/images/thanhchuong.jpg" },
+              { name: "Ngo Dinh Khanh", role: "Team Member", img: "/images/dinhkhanh.jpg" },
+              { name: "Ta Quang Hieu", role: "Project Advisor", img: "/images/quanghieu.jpg" },
+              { name: "Le Duy Dung", role: "Project Advisor", img: "/images/duydung.png" },
             ].map((member, i) => (
               <div
                 key={i}

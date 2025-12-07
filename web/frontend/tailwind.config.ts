@@ -68,6 +68,8 @@ const config: Config = {
 			animation: {
 				marquee: "marquee var(--duration) linear infinite",
 				"marquee-vertical": "marquee-vertical var(--duration) linear infinite",
+				loading: "loading 2s ease-in-out infinite",
+				shimmer: "shimmer 1.5s ease-in-out infinite",
 			},
 			keyframes: {
 				marquee: {
@@ -77,6 +79,14 @@ const config: Config = {
 				"marquee-vertical": {
 					from: { transform: "translateY(0)" },
 					to: { transform: "translateY(calc(-100% - var(--gap)))" },
+				},
+				loading: {
+					"0%": { backgroundPosition: "200% 0" },
+					"100%": { backgroundPosition: "-200% 0" },
+				},
+				shimmer: {
+					"0%": { transform: "translateX(-100%)" },
+					"100%": { transform: "translateX(100%)" },
 				},
 			},
 		}

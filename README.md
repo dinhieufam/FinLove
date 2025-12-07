@@ -85,7 +85,35 @@ pip install -r requirements.txt
 cd ../..
 ```
 
-### Step 2: Install Frontend Dependencies
+### Step 2: Set Up API Keys and Environment Variables
+
+FinLove requires API keys for LLM-powered features (such as Gemini) and uses environment variables for configuration.
+
+1. **Set up environment variables for the backend API**:
+
+   - Copy the example environment file:
+
+     ```bash
+     cp web/backend/env.example.txt web/backend/.env
+     ```
+
+   - Edit `web/backend/.env` to add your own credentials and API keys.  
+     Example contents (see [web/backend/env.example.txt](web/backend/env.example.txt) for full list):
+
+     ```
+     # Multiple API keys (comma-separated, for rotation)
+     GEMINI_API_KEYS=your-gemini-api-key-here
+
+     # Multiple models (comma-separated)
+     GEMINI_MODELS=gemini-2.5-pro
+
+     # Embedding model for vector search
+     HUGGINGFACE_EMBEDDING_MODEL=all-MiniLM-L6-v2
+     ```
+
+   - **Note:** You must provide at least one valid GEMINI API key for LLM explanations and chatbot features.
+
+### Step 3: Install Frontend Dependencies
 
 ```bash
 cd web/frontend
@@ -93,7 +121,7 @@ npm install
 cd ../..
 ```
 
-### Step 3: (Optional) Pre-download Data
+### Step 4: (Optional) Pre-download Data
 
 For improved performance, pre-download financial datasets:
 
@@ -103,7 +131,7 @@ python scripts/download_data.py
 
 See [DATA.md](DATA.md) for detailed information about data download and caching mechanisms.
 
-### Step 4: Run the Web Application
+### Step 5: Run the Web Application
 
 The main FinLove platform is a full-stack web application with Next.js frontend and FastAPI backend:
 
@@ -124,23 +152,6 @@ npm run dev
 The web application will be available at `http://localhost:3000`
 
 The frontend automatically proxies API requests to the backend, so you only need to access `http://localhost:3000` in your browser.
-
-**Alternative: Streamlit Dashboard**
-
-For a quick alternative interface, you can also use the Streamlit dashboard:
-
-```bash
-streamlit run dashboard/app.py
-```
-
-Or use the convenience script:
-
-```bash
-chmod +x run_dashboard.sh
-./run_dashboard.sh
-```
-
-The Streamlit dashboard will open at `http://localhost:8501`
 
 ---
 
@@ -218,8 +229,6 @@ future_returns = results['aggregated_prediction']
 print(f"Expected daily return: {future_returns.mean()*100:.4f}%")
 ```
 
-For detailed usage examples, see [QUICK_START.md](QUICK_START.md) and [PREDICTION_GUIDE.md](PREDICTION_GUIDE.md).
-
 ---
 
 ## Project Structure
@@ -235,8 +244,6 @@ FinLove/
 │   ├── forecast.py        # Time series forecasting methods
 │   ├── predict.py         # Prediction pipeline orchestration
 │   └── model_collector.py # Model evaluation and selection
-├── dashboard/             # Streamlit dashboard application
-│   └── app.py            # Main dashboard interface
 ├── web/                   # Full-stack web application
 │   ├── backend/          # FastAPI backend
 │   │   ├── app.py        # API server entry point
@@ -252,13 +259,7 @@ FinLove/
 ├── evaluation/            # Model evaluation notebooks
 ├── requirements.txt       # Python dependencies
 ├── README.md             # This file
-├── QUICK_START.md        # Quick start guide
-├── PREDICTION_GUIDE.md   # Prediction system documentation
-├── DATA.md               # Data management guide
-└── PROJECT_STRUCTURE.md  # Detailed project structure documentation
 ```
-
-For a comprehensive overview of the project structure, see [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md).
 
 ---
 
@@ -289,10 +290,6 @@ For a comprehensive overview of the project structure, see [PROJECT_STRUCTURE.md
 ### Forecasting System
 
 - **ARIMA/SARIMA**: Statistical time series models for trend and seasonality
-- **Prophet**: Facebook's forecasting tool for time series with strong seasonal patterns
-- **LSTM**: Long Short-Term Memory neural networks for capturing complex temporal dependencies
-- **Exponential Smoothing**: Holt-Winters method for trend and seasonal decomposition
-- **Ensemble Methods**: Combines multiple forecasting approaches for robust predictions
 
 ### LLM Integration
 
@@ -441,15 +438,10 @@ This project is the result of collaborative effort by the following team members
 - **Nguyen Van Duy Anh**: Risk models and optimization algorithms
 - **Ngo Dinh Khanh**: Dashboard development and landing page design
 
----
+### Project Advisors
 
-## Documentation
-
-- **[QUICK_START.md](QUICK_START.md)**: Comprehensive quick start guide with examples
-- **[PREDICTION_GUIDE.md](PREDICTION_GUIDE.md)**: Detailed documentation for the prediction system
-- **[PREDICTION_SUMMARY.md](PREDICTION_SUMMARY.md)**: Summary of prediction capabilities
-- **[DATA.md](DATA.md)**: Data download, caching, and management guide
-- **[PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)**: Detailed project structure and architecture
+- **Ta Quang Hieu**: Project Advisor
+- **Le Duy Dung**: Project Advisor
 
 ---
 

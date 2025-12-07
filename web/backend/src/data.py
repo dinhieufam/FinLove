@@ -128,7 +128,7 @@ def load_from_dataset_csv(
     end_date: Optional[str] = None
 ) -> Optional[pd.DataFrame]:
     """
-    Load data from pre-downloaded CSV files in the Dataset directory.
+    Load data from pre-downloaded CSV files in the data directory.
 
     This function searches for CSV files matching the pattern:
     {TICKER}_{start_date}_to_{end_date}.csv and loads them into a MultiIndex
@@ -146,7 +146,7 @@ def load_from_dataset_csv(
     if not os.path.exists(DATASET_DIR):
         return None
     
-    # Get all CSV files in Dataset directory
+    # Get all CSV files in data directory
     csv_files = [f for f in os.listdir(DATASET_DIR) if f.endswith('.csv')]
     
     if not csv_files:
@@ -248,7 +248,7 @@ def download_data(
     Download historical price data for given tickers with optional caching.
 
     This function tries multiple data sources in order:
-    1. Pre-downloaded CSV files in Dataset directory
+    1. Pre-downloaded CSV files in data directory
     2. Cached pickle files in data_cache directory
     3. Download from Yahoo Finance via yfinance
 
@@ -263,7 +263,7 @@ def download_data(
     Returns:
         DataFrame with MultiIndex columns (ticker, OHLCV) and Date index.
     """
-    # First, try to load from pre-downloaded CSV files in Dataset directory
+    # First, try to load from pre-downloaded CSV files in data directory
     csv_data = load_from_dataset_csv(tickers, start_date, end_date)
     if csv_data is not None and not csv_data.empty:
         # Filter by date range if specified
@@ -288,7 +288,7 @@ def download_data(
                 csv_data = csv_data[[t for t in available_tickers if t in tickers]]
         
         if not csv_data.empty:
-            print(f"✅ Loaded data from CSV files in Dataset directory for: {list(csv_data.columns.get_level_values(0).unique()) if isinstance(csv_data.columns, pd.MultiIndex) else 'single ticker'}")
+            print(f"✅ Loaded data from CSV files in data directory for: {list(csv_data.columns.get_level_values(0).unique()) if isinstance(csv_data.columns, pd.MultiIndex) else 'single ticker'}")
             return csv_data
     
     # Try to load from cache second

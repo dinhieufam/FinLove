@@ -420,6 +420,10 @@ export default function DashboardPage() {
 
   const metrics = data?.metrics;
 
+  // Combined loading state
+  const isLoading = loading || predLoading;
+  const loadingMessage = loading ? "Analyzing portfolio..." : predLoading ? "Forecasting portfolio..." : "";
+
   // Sidebar Content
   const sidebarContent = (
     <>
@@ -613,7 +617,31 @@ export default function DashboardPage() {
 
   return (
     <AppShell sidebarContent={sidebarContent}>
-      <div ref={topRef} className="space-y-8">
+      {/* Loading Bar */}
+      {isLoading && (
+        <div className="fixed top-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-sm border-b border-emerald-500/30 shadow-lg">
+          <div className="h-1 bg-slate-800/50 overflow-hidden relative">
+            <div className="h-full bg-gradient-to-r from-emerald-500 via-cyan-400 to-emerald-500 relative" style={{ 
+              width: '100%',
+              background: 'linear-gradient(90deg, #10b981 0%, #22d3ee 50%, #10b981 100%)',
+              backgroundSize: '200% 100%',
+              animation: 'loading 2s ease-in-out infinite'
+            }}>
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-shimmer"></div>
+            </div>
+          </div>
+          <div className="px-4 py-2 flex items-center justify-center gap-2">
+            <div className="flex gap-1">
+              <div className="h-2 w-2 animate-bounce rounded-full bg-emerald-400 [animation-delay:-0.3s]"></div>
+              <div className="h-2 w-2 animate-bounce rounded-full bg-emerald-400 [animation-delay:-0.15s]"></div>
+              <div className="h-2 w-2 animate-bounce rounded-full bg-emerald-400"></div>
+            </div>
+            <p className="text-sm text-slate-300 font-medium">{loadingMessage}</p>
+          </div>
+        </div>
+      )}
+      
+      <div ref={topRef} className="space-y-8" style={{ paddingTop: isLoading ? '60px' : '0' }}>
         <header className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <h1 className="text-2xl font-bold tracking-tight sm:text-3xl">Portfolio Studio</h1>
