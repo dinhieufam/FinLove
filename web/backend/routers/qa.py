@@ -146,7 +146,7 @@ async def health_check() -> dict:
             "chunks_stored": len(rag_system.chunks),
             "portfolios_stored": len(rag_system.portfolio_id_to_index),
             "has_embedding_model": hasattr(rag_system, 'embedding_model_name') and rag_system.embedding_model_name is not None,
-            "has_llm_model": rag_system.llm_model is not None
+            "has_llm_model": len(rag_system.api_keys) > 0
         }
     except Exception as e:
         return {

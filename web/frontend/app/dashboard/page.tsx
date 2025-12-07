@@ -98,6 +98,7 @@ type AnalyzeResponse = {
   company_info?: CompanyInfo[];
   assets_analysis?: Record<string, AssetData>;
   assets_returns?: Record<string, number[]>;
+  portfolio_id?: string;
 };
 
 type ModelPrediction = {
@@ -206,13 +207,13 @@ const OPTIMIZATION_OPTIONS = [
 export default function DashboardPage() {
   // Ref for scrolling to top
   const topRef = useRef<HTMLDivElement>(null);
-  
+
   // General State
   const [activeTab, setActiveTab] = useState<"investment" | "analyze" | "prediction">("investment");
 
   // Available tickers from backend
   const [availableTickers, setAvailableTickers] = useState<string[]>([]);
-  const [tickersWithNames, setTickersWithNames] = useState<Array<{ticker: string, name: string}>>([]);
+  const [tickersWithNames, setTickersWithNames] = useState<Array<{ ticker: string, name: string }>>([]);
   const [selectedTickers, setSelectedTickers] = useState<string[]>(["XLK", "XLF", "XLV", "XLY", "XLP", "XLE", "XLI", "XLB", "XLU", "XLRE", "XLC"]);
 
   // Analysis State
@@ -238,7 +239,7 @@ export default function DashboardPage() {
   useEffect(() => {
     const fetchAvailableTickers = async () => {
       try {
-        const res = await fetch("http://localhost:8000/api/portfolio/available-tickers");
+        const res = await fetch("/api/portfolio/available-tickers");
         const json = await res.json();
         if (json.tickers) {
           setAvailableTickers(json.tickers);
@@ -334,7 +335,7 @@ export default function DashboardPage() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
     }
-    
+
     setLoading(true);
     setError(null);
     try {
@@ -364,6 +365,20 @@ export default function DashboardPage() {
         setError(json.error || "Backtest failed");
         setData(null);
       } else {
+        // Store portfolio for RAG
+        try {
+          const storeRes = await fetch("/api/qa/store", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ analysis_result: json }),
+          });
+          const storeJson = await storeRes.json();
+          if (storeJson.ok && storeJson.portfolio_id) {
+            json.portfolio_id = storeJson.portfolio_id;
+          }
+        } catch (e) {
+          console.error("Failed to store portfolio for RAG:", e);
+        }
         setData(json);
       }
     } catch (e) {
@@ -382,7 +397,7 @@ export default function DashboardPage() {
       window.scrollTo({ top: 0, behavior: 'smooth' });
       document.documentElement.scrollTo({ top: 0, behavior: 'smooth' });
     }
-    
+
     setPredLoading(true);
     setPredError(null);
     try {
@@ -508,11 +523,10 @@ export default function DashboardPage() {
               {RISK_MODEL_OPTIONS.map((option) => (
                 <label
                   key={option.id}
-                  className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${
-                    riskModel === option.value
+                  className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${riskModel === option.value
                       ? 'border-emerald-500/60 bg-emerald-500/10'
                       : 'border-slate-700/60 bg-slate-950/60 hover:bg-slate-900/60'
-                  }`}
+                    }`}
                 >
                   <input
                     type="radio"
@@ -541,11 +555,10 @@ export default function DashboardPage() {
               {OPTIMIZATION_OPTIONS.map((option) => (
                 <label
                   key={option.id}
-                  className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${
-                    optimizationMethod === option.value
+                  className={`flex items-start gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${optimizationMethod === option.value
                       ? 'border-emerald-500/60 bg-emerald-500/10'
                       : 'border-slate-700/60 bg-slate-950/60 hover:bg-slate-900/60'
-                  }`}
+                    }`}
                 >
                   <input
                     type="radio"
@@ -621,7 +634,7 @@ export default function DashboardPage() {
       {isLoading && (
         <div className="fixed top-0 left-0 right-0 z-50 bg-slate-950/95 backdrop-blur-sm border-b border-emerald-500/30 shadow-lg">
           <div className="h-1 bg-slate-800/50 overflow-hidden relative">
-            <div className="h-full bg-gradient-to-r from-emerald-500 via-cyan-400 to-emerald-500 relative" style={{ 
+            <div className="h-full bg-gradient-to-r from-emerald-500 via-cyan-400 to-emerald-500 relative" style={{
               width: '100%',
               background: 'linear-gradient(90deg, #10b981 0%, #22d3ee 50%, #10b981 100%)',
               backgroundSize: '200% 100%',
@@ -640,7 +653,7 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-      
+
       <div ref={topRef} className="space-y-8" style={{ paddingTop: isLoading ? '60px' : '0' }}>
         <header className="flex flex-wrap items-start justify-between gap-4">
           <div>

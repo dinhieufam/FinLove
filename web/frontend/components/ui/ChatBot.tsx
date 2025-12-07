@@ -46,7 +46,7 @@ function formatMessageContent(content: string): React.ReactNode {
 
   lines.forEach((line, idx) => {
     const trimmed = line.trim();
-    
+
     // Headers
     if (trimmed.startsWith('### ')) {
       flushList();
@@ -90,7 +90,7 @@ function formatMessageContent(content: string): React.ReactNode {
       let lastIndex = 0;
       let match;
       let partKey = 0;
-      
+
       while ((match = boldRegex.exec(trimmed)) !== null) {
         // Add text before the bold
         if (match.index > lastIndex) {
@@ -104,17 +104,17 @@ function formatMessageContent(content: string): React.ReactNode {
         );
         lastIndex = match.index + match[0].length;
       }
-      
+
       // Add remaining text after last bold
       if (lastIndex < trimmed.length) {
         parts.push(<span key={`text-${partKey++}`}>{trimmed.substring(lastIndex)}</span>);
       }
-      
+
       // If no bold text found, just use the original text
       if (parts.length === 0) {
         parts.push(<span key="text-0">{trimmed}</span>);
       }
-      
+
       elements.push(
         <p key={idx} className="text-slate-200 mb-2">
           {parts}
@@ -176,8 +176,8 @@ export function ChatBot({ portfolioData }: ChatBotProps) {
       // Debug: Log what we're sending
       console.log("ChatBot: Sending question with portfolio_id:", portfolioData?.portfolio_id);
       console.log("ChatBot: Full portfolioData:", portfolioData);
-      
-      const response = await fetch("http://localhost:8000/api/qa/qa", {
+
+      const response = await fetch("/api/qa/qa", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -191,14 +191,14 @@ export function ChatBot({ portfolioData }: ChatBotProps) {
       }
 
       const data = await response.json();
-      
+
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),
         role: "assistant",
         content: data.answer || "I apologize, but I couldn't generate a response. Please try again.",
         timestamp: new Date(),
       };
-      
+
       setMessages((prev) => [...prev, assistantMessage]);
     } catch (error) {
       console.error("Error calling QA API:", error);
@@ -303,16 +303,14 @@ export function ChatBot({ portfolioData }: ChatBotProps) {
             {messages.map((message) => (
               <div
                 key={message.id}
-                className={`flex ${
-                  message.role === "user" ? "justify-end" : "justify-start"
-                }`}
+                className={`flex ${message.role === "user" ? "justify-end" : "justify-start"
+                  }`}
               >
                 <div
-                  className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${
-                    message.role === "user"
+                  className={`max-w-[80%] rounded-2xl px-4 py-2.5 ${message.role === "user"
                       ? "bg-emerald-500/20 text-slate-100 border border-emerald-500/30"
                       : "bg-slate-800/50 text-slate-200 border border-slate-700/50"
-                  }`}
+                    }`}
                 >
                   <div className="text-sm leading-relaxed prose prose-invert prose-sm max-w-none">
                     {formatMessageContent(message.content)}
