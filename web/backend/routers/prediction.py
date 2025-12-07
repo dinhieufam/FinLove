@@ -1,8 +1,9 @@
 import sys
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
+from pydantic import Field
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter
 from pydantic import BaseModel, Field
 import pandas as pd
 import numpy as np
@@ -13,8 +14,10 @@ BACKEND_ROOT = Path(__file__).resolve().parents[1]
 if str(BACKEND_ROOT) not in sys.path:
     sys.path.insert(0, str(BACKEND_ROOT))
 
-from src.predict import predict_future_performance  # type: ignore
-from src.data import prepare_portfolio_data  # type: ignore
+from src.data import prepare_portfolio_data, get_available_tickers  # type: ignore
+from src.forecast import forecast_portfolio_returns, ensemble_forecast  # type: ignore
+from src.risk import get_covariance_matrix  # type: ignore
+from src.optimize import optimize_portfolio  # type: ignore
 
 router = APIRouter()
 
@@ -43,15 +46,24 @@ class PredictionRequest(BaseModel):
         le=365,
         description="Number of days to forecast."
     )
-    model: Literal["all", "ensemble", "arima", "prophet", "lstm", "tcn", "xgboost", "transformer", "ma", "exponential_smoothing"] = Field(
-        default="all",
-        description="Forecasting method. Use 'all' to run LSTM, TCN, XGBoost, and Transformer for comparison."
+    optimization_method: Literal["markowitz", "min_variance", "sharpe", "black_litterman", "cvar"] = Field(
+        default="markowitz",
+        description="Portfolio optimization method."
     )
-    use_top_models: int = Field(
-        default=3,
-        ge=1,
-        le=10,
-        description="Number of top performing models to use for ensemble."
+    risk_model: Literal["ledoit_wolf", "sample", "glasso", "garch"] = Field(
+        default="ledoit_wolf",
+        description="Risk model for covariance estimation."
+    )
+    risk_aversion: float = Field(
+        default=1.0,
+        ge=0.01,
+        le=20.0,
+        description="Risk aversion parameter for Markowitz-style optimizations."
+    )
+    # forecast_method is ignored - always uses SARIMAX with fixed parameters (p=1,d=1,q=1,P=1,D=1,Q=1,seasonal_period=5)
+    forecast_method: Optional[str] = Field(
+        default=None,
+        description="Deprecated: Always uses SARIMAX. This field is ignored."
     )
 
 def _series_to_payload(series) -> Dict[str, Any]:
@@ -71,133 +83,144 @@ def _series_to_payload(series) -> Dict[str, Any]:
 @router.post("/predict", summary="Run portfolio prediction")
 async def predict_portfolio(payload: PredictionRequest) -> dict:
     """
-    Generate portfolio predictions using the selected model.
+    Generate portfolio predictions using the configured portfolio strategies.
     """
     try:
-        # If model is 'all', we run a specific set of advanced models for each ticker
-        if payload.model == 'all':
-            models_to_run = ['lstm', 'tcn', 'xgboost', 'transformer']
-            all_predictions = {}
-            
-            # Get historical data for all tickers first
-            returns, _ = prepare_portfolio_data(
-                payload.tickers,
-                start_date=payload.start_date,
-                end_date=payload.end_date
-            )
-
-            for ticker in payload.tickers:
-                if ticker not in returns.columns:
-                    continue
-                    
-                asset_series = returns[ticker].dropna()
-                if len(asset_series) < 60: # Minimum history check
-                    continue
-
-                all_predictions[ticker] = {}
-                
-                # Run each model
-                for model_name in models_to_run:
-                    try:
-                        # We use forecast_portfolio_returns but pass a single asset series
-                        # It handles Series input correctly
-                        from src.forecast import forecast_portfolio_returns
-                        
-                        result = forecast_portfolio_returns(
-                            asset_series,
-                            method=model_name,
-                            forecast_horizon=payload.forecast_horizon,
-                            lookback_window=60, # Default from Streamlit
-                            epochs=50 # Default from Streamlit
-                        )
-                        
-                        forecast_series = result['forecast']
-                        
-                        # Calculate Volatility Outlook (rolling std of forecast)
-                        # For a single path forecast, this is just 0 or undefined if we don't have multiple paths
-                        # But typically we want to compare the volatility of the forecast period vs history
-                        # Or if the model returns a distribution.
-                        # The Streamlit app calculates rolling vol of the *forecasted series* itself
-                        forecast_vol = forecast_series.rolling(window=10).std() * np.sqrt(252)
-                        
-                        all_predictions[ticker][model_name] = {
-                            "forecast": _series_to_payload(forecast_series),
-                            "volatility": _series_to_payload(forecast_vol),
-                            "metrics": {
-                                "cumulative_return": float((1 + forecast_series).prod() - 1),
-                                "volatility": float(forecast_series.std() * np.sqrt(252)),
-                                "mean_return": float(forecast_series.mean() * 252)
-                            }
-                        }
-                    except Exception as e:
-                        print(f"Error running {model_name} for {ticker}: {e}")
-                        all_predictions[ticker][model_name] = None
-
+        # Get available tickers for validation
+        available_tickers = set(get_available_tickers())
+        
+        # Validate that all requested tickers are available
+        invalid_tickers = [t for t in payload.tickers if t.upper() not in available_tickers]
+        if invalid_tickers:
             return {
-                "ok": True,
-                "mode": "all",
-                "predictions": all_predictions,
-                "forecast_horizon": payload.forecast_horizon
+                "ok": False,
+                "error": f"Invalid tickers: {', '.join(invalid_tickers)}. Available tickers: {', '.join(sorted(available_tickers))}",
+                "available_tickers": sorted(available_tickers)
             }
-
-        else:
-            # Original single/ensemble logic for PORTFOLIO level
-            # ... (keep existing logic if needed, or deprecate)
-            # For now, let's keep it but maybe the user wants per-asset for everything?
-            # The user request specifically mentioned "future cumulative returns of all models... for each company"
-            # So the 'all' mode above is what they want.
+        
+        # Normalize tickers to uppercase
+        normalized_tickers = [t.upper() for t in payload.tickers]
+        
+        # Get historical data
+        returns, _ = prepare_portfolio_data(
+            normalized_tickers,
+            start_date=payload.start_date,
+            end_date=payload.end_date
+        )
+        
+        if returns.empty or len(returns) < 60:
+            return {
+                "ok": False,
+                "error": "Insufficient data for prediction."
+            }
+        
+        # Clean returns
+        returns = returns.dropna(axis=1, thresh=len(returns) * 0.8)
+        if returns.empty:
+            return {
+                "ok": False,
+                "error": "No valid assets after cleaning."
+            }
+        
+        # Get covariance matrix using the configured risk model
+        covariance = get_covariance_matrix(returns, method=payload.risk_model)
+        
+        # Optimize portfolio using the configured optimization method
+        weights = optimize_portfolio(
+            returns,
+            covariance,
+            method=payload.optimization_method,
+            risk_aversion=payload.risk_aversion,
+            constraints={"long_only": True}
+        )
+        
+        # Calculate portfolio returns using optimized weights
+        portfolio_returns = (returns * weights).sum(axis=1)
+        
+        # Filter portfolio returns to match the exact date range (start_date to end_date)
+        # This ensures we only use data from the specified period
+        start_dt = pd.to_datetime(payload.start_date)
+        end_dt = pd.to_datetime(payload.end_date)
+        portfolio_returns = portfolio_returns[(portfolio_returns.index >= start_dt) & (portfolio_returns.index <= end_dt)]
+        
+        if portfolio_returns.empty:
+            return {
+                "ok": False,
+                "error": "No data available for the specified date range."
+            }
+        
+        # Get full historical cumulative returns for chart (from start_date to end_date)
+        historical_cumulative = (1 + portfolio_returns).cumprod()
+        
+        # Forecast future portfolio returns using SARIMAX with fixed parameters
+        # Order: (p=1, d=1, q=1), Seasonal: (P=1, D=1, Q=1, seasonal_period=5)
+        from statsmodels.tsa.statespace.sarimax import SARIMAX
+        
+        try:
+            # Fit SARIMAX model with specified parameters
+            model = SARIMAX(
+                portfolio_returns,
+                order=(1, 1, 1),
+                seasonal_order=(1, 1, 1, 5),
+                enforce_stationarity=False,
+                enforce_invertibility=False
+            )
+            fitted = model.fit(disp=False)
             
-            # Fallback to original logic if specific model requested
-            results = predict_future_performance(
-                tickers=payload.tickers,
-                start_date=payload.start_date,
-                end_date=payload.end_date,
-                forecast_horizon=payload.forecast_horizon,
-                forecast_method=payload.model,
-                use_top_models=payload.use_top_models,
-                backtest_type='walk_forward',
-                train_window=36
+            # Forecast
+            forecast = fitted.forecast(steps=payload.forecast_horizon)
+            
+            # Create forecast dates starting from day after end_date
+            forecast_start = end_dt + pd.Timedelta(days=1)
+            forecast_dates = pd.date_range(
+                start=forecast_start,
+                periods=payload.forecast_horizon,
+                freq='D'
             )
             
-            # ... (rest of original logic) ...
-            aggregated_prediction = results['aggregated_prediction']
-            top_models_df = results['top_models']
+            forecast_returns = pd.Series(forecast.values, index=forecast_dates)
             
-            if not top_models_df.empty:
-                best_model = top_models_df.iloc[0]
-                historical_returns = best_model['portfolio_returns']
-                historical_cumulative = (1 + historical_returns).cumprod()
-                recent_history = historical_cumulative.iloc[-90:]
-            else:
-                recent_history = pd.Series()
-
-            last_hist_val = recent_history.iloc[-1] if not recent_history.empty else 1.0
-            forecast_cumulative = (1 + aggregated_prediction).cumprod() * last_hist_val
-            
-            top_models_list = []
-            for _, row in top_models_df.iterrows():
-                top_models_list.append({
-                    "model_id": row['model_id'],
-                    "sharpe_ratio": float(row['sharpe_ratio']),
-                    "annualized_return": float(row['annualized_return']),
-                    "annualized_volatility": float(row['annualized_volatility'])
-                })
-
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
             return {
-                "ok": True,
-                "mode": "portfolio",
-                "series": {
-                    "historical": _series_to_payload(recent_history),
-                    "forecast": _series_to_payload(forecast_cumulative)
-                },
-                "metrics": {
-                    "expected_daily_return": float(aggregated_prediction.mean()),
-                    "forecast_volatility": float(aggregated_prediction.std())
-                },
-                "top_models": top_models_list,
-                "forecast_horizon": payload.forecast_horizon,
-                "forecast_method": payload.model
+                "ok": False,
+                "error": f"SARIMAX forecast failed: {str(e)}"
             }
+        
+        # Ensure forecast dates start from the day after end_date
+        # The forecast functions should already do this, but let's verify
+        if forecast_returns.index[0] <= end_dt:
+            # If forecast starts before or on end_date, adjust it
+            forecast_start = end_dt + pd.Timedelta(days=1)
+            forecast_dates = pd.date_range(
+                start=forecast_start,
+                periods=payload.forecast_horizon,
+                freq='D'
+            )
+            forecast_returns.index = forecast_dates[:len(forecast_returns)]
+        
+        # Calculate cumulative forecast starting from the last historical value
+        last_hist_val = historical_cumulative.iloc[-1] if not historical_cumulative.empty else 1.0
+        forecast_cumulative = (1 + forecast_returns).cumprod() * last_hist_val
+        
+        return {
+            "ok": True,
+            "mode": "portfolio",
+            "series": {
+                "historical": _series_to_payload(historical_cumulative),
+                "forecast": _series_to_payload(forecast_cumulative)
+            },
+            "metrics": {
+                "expected_daily_return": float(forecast_returns.mean()),
+                "forecast_volatility": float(forecast_returns.std() * np.sqrt(252))
+            },
+            "forecast_horizon": payload.forecast_horizon,
+            "optimization_method": payload.optimization_method,
+            "risk_model": payload.risk_model,
+            "start_date": payload.start_date,
+            "end_date": payload.end_date
+        }
 
     except Exception as e:
         import traceback

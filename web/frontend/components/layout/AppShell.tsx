@@ -7,11 +7,11 @@ type Props = {
 };
 
 export function AppShell({ children, sidebarContent }: Props) {
-  const sidebarWidth = sidebarContent ? "w-72" : "w-56";
+  const sidebarWidth = sidebarContent ? "w-96" : "w-56";
 
   return (
     <div className="finlove-gradient-bg min-h-screen">
-      <div className="mx-auto flex min-h-screen max-w-6xl gap-6 px-4 py-5 sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-screen max-w-7xl gap-6 px-4 py-5 sm:px-6 lg:px-8">
         {/* Sidebar */}
         <aside
           className={`hidden ${sidebarWidth} shrink-0 flex-col justify-between rounded-2xl border border-slate-800/80 bg-slate-950/80 px-4 py-5 shadow-soft-elevated md:flex`}

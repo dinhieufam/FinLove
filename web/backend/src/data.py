@@ -451,6 +451,58 @@ def compute_features(
     return df
 
 
+def get_available_tickers() -> List[str]:
+    """
+    Get list of available tickers from the data folder.
+    
+    Returns:
+        Sorted list of ticker symbols available in the data directory.
+    """
+    if not os.path.exists(DATASET_DIR):
+        return []
+    
+    # Get all CSV files in the data directory
+    csv_files = [f for f in os.listdir(DATASET_DIR) if f.endswith('.csv')]
+    
+    # Extract ticker names from filenames (format: TICKER_startdate_to_enddate.csv)
+    tickers = set()
+    for filename in csv_files:
+        # Extract ticker from filename (everything before the first underscore)
+        ticker = filename.split('_')[0].upper()
+        if ticker:
+            tickers.add(ticker)
+    
+    return sorted(list(tickers))
+
+
+def get_available_tickers_with_names() -> List[Dict[str, str]]:
+    """
+    Get list of available tickers with their company names from the data folder.
+    
+    Returns:
+        List of dictionaries with 'ticker' and 'name' keys, sorted by ticker.
+    """
+    tickers = get_available_tickers()
+    result = []
+    
+    for ticker in tickers:
+        try:
+            company_info = get_company_info(ticker)
+            result.append({
+                'ticker': ticker,
+                'name': company_info.get('name', ticker)
+            })
+        except Exception as e:
+            # If we can't get company info, just use the ticker as the name
+            print(f"Error getting company info for {ticker}: {e}")
+            result.append({
+                'ticker': ticker,
+                'name': ticker
+            })
+    
+    return result
+
+
 def get_company_info(ticker: str) -> Dict[str, Any]:
     """
     Get company information from Yahoo Finance.
