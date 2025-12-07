@@ -2,6 +2,7 @@
 **Project title:** FinLove — Risk-Aware Portfolio Construction  
 **Slogan:** Your Money, Our Plan, Your Profit!  
 **Team name:** FinLove
+**Github Link:** https://github.com/dinhieufam/FinLove
 
 ---
 
