@@ -401,8 +401,8 @@ export default function LandingPage() {
               { name: "Cao Pham Minh Dang", role: "Team Member", img: "/images/minhdang.png" },
               { name: "Tran Anh Chuong", role: "Team Member", img: "/images/thanhchuong.jpg" },
               { name: "Ngo Dinh Khanh", role: "Team Member", img: "/images/dinhkhanh.jpg" },
-              { name: "Ta Quang Hieu", role: "Project Advisor", img: "/images/quanghieu.jpg" },
-              { name: "Le Duy Dung", role: "Project Advisor", img: "/images/duydung.png" },
+              { name: "Nguyen Huy Hung", role: "Project Advisor", img: "/images/huyhung.jpg" },
+              { name: "Dr. Mo El-Haj", role: "Project Advisor", img: "/images/mo_elhaj.jpg" },
             ].map((member, i) => (
               <div
                 key={i}

@@ -440,8 +440,8 @@ This project is the result of collaborative effort by the following team members
 
 ### Project Advisors
 
-- **Ta Quang Hieu**: Project Advisor
-- **Le Duy Dung**: Project Advisor
+- **Nguyen Huy Hung**: Project Advisor
+- **Dr. Mo El-Haj**: Project Advisor
 
 ---
 
