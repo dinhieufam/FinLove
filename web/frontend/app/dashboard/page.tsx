@@ -257,7 +257,7 @@ export default function DashboardPage() {
         test_window: 1,
       };
 
-      const res = await fetch("http://localhost:8000/api/portfolio/analyze", {
+      const res = await fetch("/api/portfolio/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -291,7 +291,7 @@ export default function DashboardPage() {
         use_top_models: 3
       };
 
-      const res = await fetch("http://localhost:8000/api/portfolio/predict", {
+      const res = await fetch("/api/portfolio/predict", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
@@ -438,8 +438,8 @@ export default function DashboardPage() {
                 key={tab}
                 onClick={() => setActiveTab(tab)}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${activeTab === tab
-                    ? "bg-emerald-500 text-slate-950"
-                    : "bg-slate-800/50 text-slate-400 hover:text-slate-200"
+                  ? "bg-emerald-500 text-slate-950"
+                  : "bg-slate-800/50 text-slate-400 hover:text-slate-200"
                   }`}
               >
                 {tab.charAt(0).toUpperCase() + tab.slice(1)}
