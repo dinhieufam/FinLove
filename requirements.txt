@@ -25,6 +25,11 @@ tqdm>=4.65.0
 # AI explanations (optional)
 openai>=1.12.0
 
+# Report generation (optional - for PDF conversion)
+markdown>=3.4.0  # For markdown to HTML conversion
+weasyprint>=60.0  # For HTML to PDF conversion
+# pypandoc>=1.12  # Optional: For better LaTeX support in PDFs (requires pandoc binary)
+
 # Time series forecasting (optional - install as needed)
 statsmodels>=0.14.0  # For ARIMA, exponential smoothing
 prophet>=1.1.4  # For Prophet forecasting (requires: pip install prophet)

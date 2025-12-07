@@ -253,9 +253,15 @@ FinLove/
 │       ├── app/          # Application pages and routing
 │       └── components/   # Reusable UI components
 ├── scripts/               # Utility scripts
-│   └── download_data.py  # Data pre-download script
+│   ├── download_data.py  # Data pre-download script
+│   ├── example_prediction.py  # Example prediction usage
+│   └── train_all_models.py  # Model training script
+├── report_generation/     # Report generation utilities
+│   ├── convert.py        # Markdown to PDF converter
+│   └── report.md         # Project report (markdown)
 ├── models/                # Saved machine learning models
 ├── data/                  # Raw and processed data storage
+├── data_cache/            # Cached financial data
 ├── evaluation/            # Model evaluation notebooks
 ├── requirements.txt       # Python dependencies
 ├── README.md             # This file
@@ -411,6 +417,12 @@ print(f"Top models used: {list(top_models['model_id'])}")
 - `prophet>=1.1.4` (for Prophet forecasting)
 - `tensorflow>=2.13.0` (for LSTM models)
 - `xgboost>=2.0.0` (for XGBoost forecasting)
+
+### Report Generation (Optional)
+
+- `markdown>=3.4.0` (for markdown to HTML conversion)
+- `weasyprint>=60.0` (for HTML to PDF conversion)
+- `pypandoc>=1.12` (optional, for better LaTeX support in PDFs - requires pandoc binary)
 
 See `requirements.txt` for the complete list of dependencies.
 
